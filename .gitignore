@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.db
+*.sqlite3
+backend/uploads/
+
+# Secrets — NEVER commit these
+.env
+backend/.env
+*.env
+
+# Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# Root level
+node_modules/
+.env.local
+.DS_Store
+Thumbs.db

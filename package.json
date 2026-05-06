@@ -1,0 +1,7 @@
+{
+  "name": "mindsense-root",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "echo. && echo ========================================================== && echo ERROR: You are in the wrong folder! && echo Please type 'cd frontend' first, then run 'npm run dev' && echo ========================================================== && echo. && exit 1"
+  }
+}
