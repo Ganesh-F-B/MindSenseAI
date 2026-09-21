@@ -1,0 +1,41 @@
+text,intent,source,domain
+I rely on alcohol to cope with my emotions.,substance_abuse,curated,health
+I can't stop drinking even when I want to.,substance_abuse,curated,health
+I use drugs to escape my problems.,substance_abuse,curated,health
+My substance use is affecting my daily life.,substance_abuse,curated,health
+I feel guilty after drinking too much.,substance_abuse,curated,health
+I know my drinking has become a serious problem.,substance_abuse,curated,health
+I hide my alcohol use from my family.,substance_abuse,curated,family
+I keep using substances even though they are harming me.,substance_abuse,curated,health
+I have tried to quit but I always relapse.,substance_abuse,curated,health
+My substance use is damaging my relationships.,substance_abuse,curated,health
+I drink whenever I feel stressed.,substance_abuse,curated,health
+I feel dependent on alcohol.,substance_abuse,curated,health
+I can't imagine relaxing without drinking.,substance_abuse,curated,health
+I spend too much money on alcohol.,substance_abuse,curated,health
+People around me are worried about my drinking.,substance_abuse,curated,social
+I have lost control over my substance use.,substance_abuse,curated,health
+I feel ashamed of my drinking habits.,substance_abuse,curated,health
+My health is getting worse because of alcohol.,substance_abuse,curated,health
+I use substances to numb emotional pain.,substance_abuse,curated,health
+I don't like the person I become after drinking.,substance_abuse,curated,health
+I keep promising to quit but never do.,substance_abuse,curated,health
+My family keeps asking me to stop drinking.,substance_abuse,curated,family
+I drink alone most of the time.,substance_abuse,curated,health
+I regret my actions after using alcohol.,substance_abuse,curated,health
+I feel anxious when I don't drink.,substance_abuse,curated,health
+Alcohol has become part of my daily routine.,substance_abuse,curated,health
+I want help to stop using substances.,substance_abuse,curated,health
+I know this habit is destroying my future.,substance_abuse,curated,health
+I feel trapped by my dependence on alcohol.,substance_abuse,curated,health
+I have lost opportunities because of my drinking.,substance_abuse,curated,career
+I hide bottles so no one notices.,substance_abuse,curated,health
+I feel embarrassed about my substance use.,substance_abuse,curated,health
+I can't stay sober for very long.,substance_abuse,curated,health
+I drink even when I know I shouldn't.,substance_abuse,curated,health
+My substance use is affecting my studies.,substance_abuse,curated,student
+I avoid people because of my drinking.,substance_abuse,curated,social
+I feel hopeless about overcoming this habit.,substance_abuse,curated,health
+I need professional help to recover.,substance_abuse,curated,health
+I don't want alcohol to control my life anymore.,substance_abuse,curated,health
+Recovery feels difficult but I want to keep trying.,substance_abuse,curated,health

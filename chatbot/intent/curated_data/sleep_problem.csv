@@ -1,0 +1,21 @@
+text,intent,source,domain
+I have trouble falling asleep every night.,sleep_problem,curated,health
+I keep waking up in the middle of the night.,sleep_problem,curated,health
+I don't remember the last time I slept peacefully.,sleep_problem,curated,health
+I wake up feeling tired every morning.,sleep_problem,curated,health
+I stay awake for hours before I finally fall asleep.,sleep_problem,curated,health
+My sleep schedule is completely messed up.,sleep_problem,curated,health
+I feel sleepy all day because I can't sleep at night.,sleep_problem,curated,health
+I wake up several times during the night.,sleep_problem,curated,health
+I can't get enough sleep even when I'm exhausted.,sleep_problem,curated,health
+I have nightmares that keep interrupting my sleep.,sleep_problem,curated,health
+I struggle to sleep because my mind won't slow down.,sleep_problem,curated,health
+I often lie awake thinking about everything.,sleep_problem,curated,health
+I toss and turn for hours every night.,sleep_problem,curated,health
+"Even after sleeping for many hours, I still feel tired.",sleep_problem,curated,health
+I wake up much earlier than I want and can't fall back asleep.,sleep_problem,curated,health
+I rely on naps because I barely sleep at night.,sleep_problem,curated,health
+I feel exhausted because my sleep keeps getting interrupted.,sleep_problem,curated,health
+I have difficulty maintaining a regular sleep routine.,sleep_problem,curated,health
+My poor sleep is affecting my daily life.,sleep_problem,curated,health
+I can't seem to get a full night's rest anymore.,sleep_problem,curated,health

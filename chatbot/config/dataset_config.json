@@ -1,0 +1,24 @@
+{
+  "datasets": {
+    "counseling": {
+      "input_column": "Context",
+      "response_column": "Response"
+    },
+    "reddit": {
+      "input_column": "",
+      "response_column": ""
+    },
+    "empathetic_dialogues": {
+      "input_column": "",
+      "response_column": ""
+    },
+    "go_emotions": {
+      "text_column": "",
+      "label_column": ""
+    },
+    "daily_dialog": {
+      "input_column": "",
+      "response_column": ""
+    }
+  }
+}

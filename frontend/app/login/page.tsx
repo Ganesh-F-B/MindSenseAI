@@ -10,7 +10,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
 
   const handleLogin = async (e: any) => {
     e.preventDefault();
@@ -22,10 +22,26 @@ export default function Login() {
       data.append("password", password);
       
       const res = await api.post("/token", data);
+
+      console.log("LOGIN RESPONSE:", res.data);
+
       await login(res.data.access_token);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Login failed. Check your credentials.");
-    } finally {
+     } catch (err: any) {
+       setError(
+         err.response?.data?.detail ||
+         "Login failed. Check your credentials."
+       );
+
+  // Clear any old/stale authentication token.
+  // This prevents an old valid session from making
+  // an incorrect login appear successful.
+      try {
+        logout();
+       }catch{
+    // Ignore logout navigation errors here.
+       }
+     }
+ finally {
       setLoading(false);
     }
   };

@@ -1,0 +1,21 @@
+text,intent,source,domain
+I don't feel good enough.,self_esteem,curated,general
+I have very little confidence in myself.,self_esteem,curated,general
+I always think I'm a failure.,self_esteem,curated,general
+I compare myself with everyone else.,self_esteem,curated,general
+I don't believe in my abilities.,self_esteem,curated,general
+I feel like I'm not smart enough.,self_esteem,curated,student
+I don't like the person I've become.,self_esteem,curated,general
+I feel worthless most of the time.,self_esteem,curated,general
+I never feel proud of my achievements.,self_esteem,curated,general
+I constantly criticize myself.,self_esteem,curated,general
+I don't think anyone values me.,self_esteem,curated,social
+I feel insecure about everything I do.,self_esteem,curated,general
+I don't think I'm capable of succeeding.,self_esteem,curated,career
+I feel like everyone is better than me.,self_esteem,curated,general
+I struggle to accept compliments.,self_esteem,curated,general
+I always doubt my decisions.,self_esteem,curated,general
+I feel like I disappoint everyone.,self_esteem,curated,family
+I wish I had more confidence.,self_esteem,curated,general
+I don't believe I deserve good things.,self_esteem,curated,general
+I feel invisible wherever I go.,self_esteem,curated,social

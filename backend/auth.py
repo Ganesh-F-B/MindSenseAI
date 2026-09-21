@@ -1,9 +1,23 @@
 import bcrypt
+import logging
+import os
+import secrets
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-import os
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "b39dc1d5750d5ec42c0cf30c1154f826372a6b22eeec754b23267d34be01cd63")
+logger = logging.getLogger(__name__)
+
+# Prefer JWT_SECRET_KEY from the environment (backend/.env). If it is not
+# configured, generate an ephemeral random key so the application still
+# starts; tokens are then invalidated on restart. Never ship a hardcoded
+# production secret.
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning(
+        "JWT_SECRET_KEY not set — using a temporary random signing key. "
+        "Sessions will be invalidated on restart. Set JWT_SECRET_KEY in backend/.env."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 

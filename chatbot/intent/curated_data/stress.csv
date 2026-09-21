@@ -1,0 +1,21 @@
+text,intent,source,domain
+I feel overwhelmed by all my responsibilities.,stress,curated,general
+There is too much pressure on me lately.,stress,curated,general
+I don't know how to manage everything at once.,stress,curated,general
+College assignments are stressing me out.,stress,curated,student
+I feel exhausted because of my workload.,stress,curated,work
+My deadlines are becoming impossible to handle.,stress,curated,work
+I have too many things to finish before tomorrow.,stress,curated,student
+Financial problems are causing me a lot of stress.,stress,curated,general
+I'm struggling to balance college and my personal life.,stress,curated,student
+I feel mentally drained after every day.,stress,curated,general
+Family responsibilities are becoming too much for me.,stress,curated,family
+I don't get enough time to relax anymore.,stress,curated,general
+I feel pressured to meet everyone's expectations.,stress,curated,family
+My schedule is so busy that I barely get any rest.,stress,curated,general
+Every day feels like a race against time.,stress,curated,general
+I keep worrying about unfinished tasks.,stress,curated,work
+I feel burned out after working continuously.,stress,curated,work
+Preparing for placements has become very stressful.,stress,curated,career
+Managing exams and projects together is exhausting.,stress,curated,student
+I just want a break from everything for a while.,stress,curated,general

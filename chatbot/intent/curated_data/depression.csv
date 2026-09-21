@@ -1,0 +1,21 @@
+text,intent,source,domain
+I feel empty most of the time.,depression,curated,general
+Nothing seems to make me happy anymore.,depression,curated,general
+I have lost interest in the things I used to enjoy.,depression,curated,general
+I feel emotionally drained every day.,depression,curated,general
+Getting out of bed feels difficult.,depression,curated,health
+I don't have the energy to do simple tasks.,depression,curated,health
+I feel hopeless about my future.,depression,curated,general
+Everything feels meaningless lately.,depression,curated,general
+I feel like I'm just going through the motions.,depression,curated,general
+I don't enjoy spending time with anyone anymore.,depression,curated,social
+I feel disconnected from everyone around me.,depression,curated,social
+I cry without knowing the exact reason.,depression,curated,health
+I constantly feel sad even when nothing is wrong.,depression,curated,general
+My motivation has completely disappeared.,depression,curated,student
+I feel tired emotionally all the time.,depression,curated,health
+I find it difficult to concentrate on my studies.,depression,curated,student
+I don't feel excited about anything anymore.,depression,curated,general
+Every day feels exactly the same.,depression,curated,general
+I feel lonely even when I'm surrounded by people.,depression,curated,social
+I feel like I've lost a part of myself.,depression,curated,general

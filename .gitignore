@@ -1,26 +1,78 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Python virtual environments & packages
 .venv/
+.venv*/
 venv/
-*.db
-*.sqlite3
-backend/uploads/
+*env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
 
-# Secrets — NEVER commit these
-.env
-backend/.env
-*.env
-
-# Next.js
-frontend/.next/
-frontend/node_modules/
-frontend/out/
-
-# Root level
+# Node.js dependencies & builds
 node_modules/
-.env.local
+frontend/node_modules/
+.next/
+frontend/.next/
+out/
+frontend/out/
+npm-debug.log*
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+
+# Environment & Secrets — NEVER commit these
+.env
+.env.*
+*.env
+backend/.env
+frontend/.env.local
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# Database & local data
+*.db
+*.sqlite
+*.sqlite3
+mindsense.db
+backend/mindsense.db
+
+# Runtime / Generated / User Uploads
+uploads/
+backend/uploads/
+*.log
+*.tmp
 .DS_Store
 Thumbs.db
+.backups/
+*.bak
+
+# IDE & local workspace
+.vscode/
+.idea/
+
+# Large Datasets & Training Artifacts (offline data)
+datasets/
+chatbot/datasets/
+roberta_training/roberta_results/
+roberta_training/roberta_env/
+
+# Scratch & Debug text dumps
+all_media_datasets.txt
+emotion_training_search.txt
+main_top.txt
+main_video.txt
+video_backend.txt
+video_frontend.txt
+video_training_files.txt
+requirements-old.txt
+backend/main_backup.py
+
+# Project backup files
+*.bak_*
+
+# Large local model files
+chatbot/models/checkpoints/*.pt
+chatbot/models/emotion/*.pt
+chatbot/models/emotion_basic/**/*.pt
+chatbot/models/intent/*.pt
+roberta_training/roberta_model/*.safetensors

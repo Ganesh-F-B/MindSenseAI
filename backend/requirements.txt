@@ -1,14 +1,36 @@
-fastapi
-uvicorn
-python-multipart
-sqlalchemy
-passlib[bcrypt]
-python-jose[cryptography]
-pypdf
-groq
-gTTS
-pydantic[email]
-python-dotenv
-psycopg2-binary
-requests
-opencv-python-headless
+# ── Web framework ─────────────────────────────────────────────────
+fastapi==0.141.1
+uvicorn==0.52.3
+python-multipart==0.0.32
+pydantic[email]==2.13.4
+
+# ── Database / authentication ─────────────────────────────────────
+SQLAlchemy==2.0.52
+python-jose[cryptography]==3.5.0
+bcrypt==5.0.0
+python-dotenv==1.2.2
+
+# ── ML / NLP (DeBERTa-v3 + TF-IDF) ────────────────────────────────
+# torch is pinned without the "+cpu" local tag so it resolves on any
+# platform. Install a CPU build from https://download.pytorch.org to
+# keep the project fully offline/local: torch==2.5.1+cpu
+torch>=2.5.1
+transformers==5.15.0
+sentencepiece==0.2.2
+joblib==1.5.3
+scikit-learn==1.4.2
+numpy==2.2.6
+
+# ── Multimodal / video emotion (DeepFace + OpenCV) ────────────────
+opencv-python==5.0.0.93
+deepface==0.0.100
+tensorflow==2.21.0
+tf-keras==2.21.0
+
+# ── Chat / optional external services (Groq, TTS, PDF) ────────────
+# Groq is OPTIONAL: the backend and chatbot fall back to local
+# rule-based responses when GROQ_API_KEY is not configured.
+groq==1.6.0
+gTTS==2.5.4
+pypdf==6.16.1
+requests==2.34.2

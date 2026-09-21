@@ -22,13 +22,32 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
+const getStoredToken = () => {
+  if (typeof window === 'undefined') return null;
+  return Cookies.get('token') || window.localStorage.getItem('token');
+};
+
+const persistToken = (token: string) => {
+  Cookies.set('token', token, { expires: 7, path: '/' });
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem('token', token);
+  }
+};
+
+const clearStoredToken = () => {
+  Cookies.remove('token', { path: '/' });
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem('token');
+  }
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   const checkAuth = async () => {
-    const token = Cookies.get('token');
+    const token = getStoredToken();
     if (!token) {
       setUser(null);
       setLoading(false);
@@ -38,7 +57,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const res = await api.get('/users/me');
       setUser(res.data);
     } catch (err) {
-      Cookies.remove('token');
+      clearStoredToken();
       setUser(null);
     } finally {
       setLoading(false);
@@ -50,13 +69,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (token: string) => {
-    Cookies.set('token', token, { expires: 7 });
+    persistToken(token);
     await checkAuth();
     router.push('/dashboard');
   };
 
   const logout = () => {
-    Cookies.remove('token');
+    clearStoredToken();
     setUser(null);
     router.push('/login');
   };

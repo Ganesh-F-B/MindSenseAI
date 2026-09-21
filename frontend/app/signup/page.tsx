@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import api from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
 import Link from "next/link";
@@ -19,7 +18,7 @@ export default function Signup() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const { login } = useAuth();
 
   const handleChange = (e: any) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -49,11 +48,7 @@ export default function Signup() {
       loginData.append("password", formData.password);
       
       const loginRes = await api.post("/token", loginData);
-      
-      // We need to set the cookie.
-      // Easiest is to redirect to login or just use the hook login method
-      // We will let the user login manually for simplicity, but let's do it via api
-      router.push("/login?msg=signup_success");
+      await login(loginRes.data.access_token);
     } catch (err: any) {
       setError(err.response?.data?.detail || "Signup failed");
     } finally {

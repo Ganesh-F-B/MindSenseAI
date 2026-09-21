@@ -1,0 +1,21 @@
+text,intent,source,domain
+I feel nervous before every exam.,anxiety,curated,student
+I keep worrying about my future.,anxiety,curated,career
+My mind never stops thinking about problems.,anxiety,curated,general
+I panic when I have to speak in front of people.,anxiety,curated,social
+I always expect something bad to happen.,anxiety,curated,general
+I can't relax even when everything is fine.,anxiety,curated,general
+I feel tense all day without knowing why.,anxiety,curated,general
+I get anxious whenever my phone rings unexpectedly.,anxiety,curated,general
+I keep imagining worst-case scenarios.,anxiety,curated,general
+I feel restless before attending interviews.,anxiety,curated,career
+I overthink every small mistake I make.,anxiety,curated,general
+I worry too much about disappointing my family.,anxiety,curated,family
+I feel anxious whenever I receive unexpected messages.,anxiety,curated,social
+I can't stop thinking about tomorrow's exam.,anxiety,curated,student
+I feel uneasy in crowded places.,anxiety,curated,social
+I struggle to calm my thoughts at night.,anxiety,curated,health
+I get nervous before meeting new people.,anxiety,curated,social
+I constantly fear making the wrong decision.,anxiety,curated,general
+I worry about things even when they're under control.,anxiety,curated,general
+I feel my heart race whenever I feel stressed.,anxiety,curated,health

@@ -41,15 +41,28 @@ export default function ChatPage() {
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [detectedEmotion, setDetectedEmotion] = useState<string | null>(null);
+  const [detectedEmotionConfidence, setDetectedEmotionConfidence] = useState<number | null>(null);
 
   const videoRecorderRef = useRef<MediaRecorder | null>(null);
   const videoChunksRef = useRef<Blob[]>([]);
+  const audioRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoAudioChunksRef = useRef<Blob[]>([]);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const webcamRef = useRef<Webcam>(null);
+  const messagesRef = useRef<any[]>([]);
+  const activeSessionIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -150,6 +163,107 @@ export default function ChatPage() {
     setTimeout(() => setErrorMsg(null), 5000);
   };
 
+  // Detect a browser-supported video MIME type for MediaRecorder.
+  // Do NOT assume webm is supported — check isTypeSupported() first.
+  const getSupportedVideoMimeType = () => {
+    const candidates = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+      "video/mp4",
+    ];
+    if (typeof MediaRecorder === "undefined") {
+      return null;
+    }
+    for (const mime of candidates) {
+      try {
+        if (MediaRecorder.isTypeSupported(mime)) {
+          return mime;
+        }
+      } catch {
+        // ignore unsupported mime types
+      }
+    }
+    return null;
+  };
+
+  // Build the { user, bot } history pairs the backend ChatEngine expects.
+  const buildChatHistory = (msgs: any[]) => {
+    const out: any[] = [];
+    for (let i = 0; i < msgs.length - 1; i += 2) {
+      const u = msgs[i];
+      const b = msgs[i + 1];
+      if (u && u.role === "user") {
+        out.push({ user: u.content, bot: b && b.role === "assistant" ? b.content : "" });
+      }
+    }
+    return out.slice(-6);
+  };
+
+  // Append ONE assistant message (used for the single facial-analysis result
+// and the single multimodal response). No session reloads here — that is what
+// caused duplicate / repeated facial-analysis messages.
+  const appendAssistantMessage = (content: string, analysis?: any) => {
+    setMessages((prev) => [...prev, { role: "assistant", content, analysis: analysis ?? null }]);
+  };
+
+  // Transcribe a recorded/uploaded audio file. Returns "" when nothing
+  // (or no speech) is detected — never throws.
+  const transcribeFile = async (audioFile: File): Promise<string> => {
+    try {
+      const transFd = new FormData();
+      transFd.append("file", audioFile);
+      const transRes = await api.post("/transcribe", transFd);
+      return (transRes.data?.text || "").trim();
+    } catch (err: any) {
+      console.error("[Video Speech] Transcription failed:", err);
+      return "";
+    }
+  };
+
+  // Send spoken text through the SAME /chat endpoint as Live Audio/text,
+  // fused with the detected facial emotion (emotion_context + confidence).
+  // Appends the user transcript + ONE assistant reply, and wires up the session.
+  const submitTranscriptToChat = async (
+    transcript: string,
+    emotion: string | null,
+    emotionConfidence: number | null = null
+  ) => {
+    try {
+      console.log("[Video Speech] Sending to /chat:", transcript.slice(0, 60));
+      const chatRes = await api.post("/chat", {
+        message: transcript,
+        history: buildChatHistory(messagesRef.current),
+        language,
+        session_id: activeSessionIdRef.current,
+        emotion_context: emotion,
+        emotion_confidence: emotionConfidence,
+      });
+
+      const reply = chatRes.data?.reply || "";
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: transcript },
+        { role: "assistant", content: reply, analysis: chatRes.data?.analysis ?? null },
+      ]);
+
+      const sid = chatRes.data?.session_id;
+      if (sid && sid !== activeSessionIdRef.current) {
+        setActiveSessionId(sid);
+        try {
+          const sessRes = await api.get("/chat/sessions");
+          setSessions(sessRes.data);
+        } catch (err) {
+          console.error("[Video Speech] Failed to refresh sessions", err);
+        }
+      }
+    } catch (err: any) {
+      console.error("[Video Speech] /chat failed:", err);
+      const detail = err?.response?.data?.detail || err?.message || "Unknown error";
+      showError(`Speech chat failed: ${detail}`);
+    }
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
@@ -161,17 +275,30 @@ export default function ChatPage() {
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setLoading(true);
 
+    // Convert messages to the format ChatEngine expects: { user, bot } pairs.
+    const historyForChat = [];
+    for (let i = 0; i < updated.length - 1; i += 2) {
+      const u = updated[i];
+      const b = updated[i + 1];
+      if (u && u.role === "user") {
+        historyForChat.push({
+          user: u.content,
+          bot: b && b.role === "assistant" ? b.content : "",
+        });
+      }
+    }
+
     try {
       const res = await api.post("/chat", { 
         message: userMessage.content, 
-        history: updated.slice(-6), 
+        history: historyForChat.slice(-6), 
         language, 
         session_id: activeSessionId,
-        emotion_context: detectedEmotion 
+        emotion_context: detectedEmotion,
+        emotion_confidence: detectedEmotionConfidence 
       });
-      setDetectedEmotion(null); // clear emotion after sending
       if (res.data && res.data.reply) {
-        setMessages(prev => [...prev, { role: "assistant", content: res.data.reply }]);
+        setMessages(prev => [...prev, { role: "assistant", content: res.data.reply, analysis: res.data.analysis ?? null }]);
         if (res.data.session_id && res.data.session_id !== activeSessionId) {
            setActiveSessionId(res.data.session_id);
            const sessRes = await api.get("/chat/sessions");
@@ -180,10 +307,22 @@ export default function ChatPage() {
       } else {
         throw new Error("Invalid response format");
       }
-    } catch (err) {
-      setMessages(prev => [...prev, { role: "assistant", content: "I'm sorry, I encountered an error connecting to the AI system. Please try again." }]);
+    } catch (err: any) {
+      console.error("CHAT ERROR:", err);
+      console.error("STATUS:", err?.response?.status);
+      console.error("DATA:", err?.response?.data);
+
+      setMessages(prev => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "I'm sorry, I encountered an error connecting to the AI system. Please try again."
+        }
+      ]);
     } finally {
       setLoading(false);
+      setDetectedEmotion(null); // clear emotion after sending
+      setDetectedEmotionConfidence(null);
     }
   };
 
@@ -197,19 +336,69 @@ export default function ChatPage() {
     const isVideo = file.name.match(/\.(mp4|mov|avi|webm)$/i);
     const endpoint = isVideo ? "/upload-video" : "/upload";
 
+    // Bind the video result to the current chat session so it persists.
+    if (isVideo && activeSessionId) {
+      fd.append("session_id", String(activeSessionId));
+    }
+
     setLoading(true);
     try {
       const res = await api.post(endpoint, fd);
       if (res.data.type === "text" && res.data.content) {
         setInput(prev => prev + (prev ? "\n\n" : "") + res.data.content);
         handleInput();
-      } else if ((res.data.type === "video" || res.data.message) && res.data.message) {
+      } else if (res.data.type === "video") {
+        if (res.data.error) {
+          showError(`Video analysis failed: ${res.data.error}`);
+        } else {
+          // Use the REAL emotion from THIS upload's response.
+          const emotion = String(
+            res.data.emotion || res.data.dominant_emotion || "neutral"
+          ).toLowerCase();
+          const emotionConfidence =
+            typeof res.data.analysis?.confidence === "number"
+              ? res.data.analysis.confidence
+              : null;
+          setDetectedEmotion(emotion);
+          setDetectedEmotionConfidence(emotionConfidence);
+
+          // Format facial emotion breakdown (supports multi-person and distribution)
+          let emotionDisplay = `📷 Facial Emotion: ${emotion.charAt(0).toUpperCase()}${emotion.slice(1)}`;
+          if (Array.isArray(res.data.people) && res.data.people.length > 1) {
+            const lines = res.data.people.map((p: any) =>
+              `  • Person ${p.person_id}: ${String(p.dominant_emotion || "neutral").toUpperCase()} (${p.confidence || 0}%)`
+            );
+            emotionDisplay = `📷 Facial Emotion Analysis (Multiple People Detected):\n${lines.join("\n")}`;
+          } else if (res.data.emotion_distribution && Object.keys(res.data.emotion_distribution).length > 0) {
+            const sorted = Object.entries(res.data.emotion_distribution)
+              .sort((a: any, b: any) => b[1] - a[1])
+              .slice(0, 3)
+              .map(([emo, pct]) => `${emo.charAt(0).toUpperCase() + emo.slice(1)} (${pct}%)`)
+              .join(" | ");
+            if (sorted) {
+              emotionDisplay = `📷 Facial Emotion: ${sorted}`;
+            }
+          }
+          appendAssistantMessage(emotionDisplay);
+
+          // If the video contains speech, run it through the SAME /chat
+          // pipeline as Live Audio (fused with the real facial emotion).
+          // Otherwise fall back to the backend's emotion-based reply.
+          const transcript = await transcribeFile(file);
+          if (transcript) {
+            await submitTranscriptToChat(transcript, emotion, emotionConfidence);
+          } else if (res.data.chatbot_reply) {
+            appendAssistantMessage(String(res.data.chatbot_reply), res.data.analysis || null);
+          }
+        }
+      } else if (res.data.message) {
         setMessages(prev => [...prev, { role: "assistant", content: res.data.message }]);
       } else {
         throw new Error(res.data.error || "Upload failed");
       }
     } catch (err: any) {
-      showError(err.message || "Failed to process file upload.");
+      const detail = err?.response?.data?.detail || err?.message || "Failed to process file upload.";
+      showError(String(detail));
     } finally {
       setLoading(false);
       if (e.target) e.target.value = null; // reset file input
@@ -279,70 +468,221 @@ export default function ChatPage() {
     }
   };
 
-  const startVideoRecording = () => {
-    if (webcamRef.current && webcamRef.current.stream) {
-      try {
-        const stream = webcamRef.current.stream;
-        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-        videoRecorderRef.current = recorder;
-        videoChunksRef.current = [];
+  const startVideoRecording = async () => {
+    if (!webcamRef.current || !webcamRef.current.stream) {
+      showError("Camera not ready. Please wait for the preview to load.");
+      return;
+    }
+    try {
+      const stream = webcamRef.current.stream;
+      console.log("[Live Video] Video tracks:", stream.getVideoTracks().length);
 
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) videoChunksRef.current.push(e.data);
-        };
+      const mimeType = getSupportedVideoMimeType();
+      console.log("[Live Video] Using MIME type:", mimeType);
 
-        recorder.onstop = async () => {
-          const blob = new Blob(videoChunksRef.current, { type: 'video/webm' });
-          const file = new File([blob], "video.webm");
-          const fd = new FormData();
-          fd.append("file", file);
-          setLoading(true);
-          setShowCamera(false);
+      const recorderOptions: MediaRecorderOptions = {};
+      if (mimeType) {
+        recorderOptions.mimeType = mimeType;
+      }
+      const recorder = new MediaRecorder(stream, recorderOptions);
+      videoRecorderRef.current = recorder;
+      videoChunksRef.current = [];
+
+      // ── Dedicated microphone stream (same proven mechanism as Live Audio) ──
+      // Do NOT rely on react-webcam's combined stream for speech.
+      let dedicatedAudioStream: MediaStream | null = null;
+      let audioRecorder: MediaRecorder | null = null;
+      const audioMimeType = (() => {
+        const candidates = [
+          "audio/webm;codecs=opus",
+          "audio/webm",
+          "audio/ogg;codecs=opus",
+          "audio/ogg",
+        ];
+        for (const mime of candidates) {
           try {
-              const res = await api.post("/upload-video", fd);
-              const emotion = res.data?.emotion || "neutral";
-              setDetectedEmotion(emotion);
+            if (MediaRecorder.isTypeSupported(mime)) {
+              return mime;
+            }
+          } catch {
+            // ignore unsupported mime types
+          }
+        }
+        return null;
+      })();
+      console.log("[Live Video] Audio MIME type:", audioMimeType);
 
-              // Add a user-visible status message
-              const statusMsg = { role: "assistant", content: `📷 *Facial emotion detected: **${emotion}***` };
-              setMessages(prev => [...prev, statusMsg]);
-
-              // Automatically send to AI so it responds based on the detected emotion
-              const autoMessage = `I just shared my video. My detected facial emotion is "${emotion}". Please respond to how I'm feeling.`;
-              const chatHistory = [...messages, statusMsg];
-
-              const chatRes = await api.post("/chat", {
-                message: autoMessage,
-                history: chatHistory.slice(-6),
-                language,
-                session_id: activeSessionId,
-                emotion_context: emotion
-              });
-
-              if (chatRes.data?.reply) {
-                setMessages(prev => [...prev, { role: "assistant", content: chatRes.data.reply }]);
-                if (chatRes.data.session_id && chatRes.data.session_id !== activeSessionId) {
-                  setActiveSessionId(chatRes.data.session_id);
-                  const sessRes = await api.get("/chat/sessions");
-                  setSessions(sessRes.data);
-                }
-              }
-              setDetectedEmotion(null); // clear after use
-          } catch (err) {
-              showError("Failed to process video emotion.");
-          } finally {
-              setLoading(false);
+      try {
+        dedicatedAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("[Live Video] Dedicated microphone stream started");
+        const audioOptions: MediaRecorderOptions = {};
+        if (audioMimeType) {
+          audioOptions.mimeType = audioMimeType;
+        }
+        audioRecorder = new MediaRecorder(dedicatedAudioStream, audioOptions);
+        audioRecorderRef.current = audioRecorder;
+        videoAudioChunksRef.current = [];
+        audioRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            videoAudioChunksRef.current.push(e.data);
           }
         };
-
-
-        recorder.start();
-        setIsVideoRecording(true);
-      } catch (err) {
-        showError("Error starting video recording.");
+        audioRecorder.start();
+        console.log("[Live Video] Audio recording started");
+      } catch (micErr) {
+        console.error("[Live Video] Dedicated microphone stream failed:", micErr);
+        audioRecorderRef.current = null;
+        showError("Microphone unavailable — video will record without speech.");
       }
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          videoChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const blobType = mimeType || "video/webm";
+        const blob = new Blob(videoChunksRef.current, {
+          type: blobType,
+        });
+
+        const isMp4 = blobType.includes("mp4");
+        const fileName = isMp4 ? "video.mp4" : "video.webm";
+        const file = new File([blob], fileName, {
+          type: blobType,
+        });
+
+        console.log(
+          "[Live Video] Recorded blob size:",
+          blob.size,
+          "bytes, type:",
+          blobType
+        );
+
+        // Stop the dedicated audio recorder and wait for its final
+        // onstop/dataavailable events so the audio Blob is complete.
+        const speechFile = await new Promise<File | null>((resolve) => {
+          const ar = audioRecorderRef.current;
+          if (!ar || ar.state === "inactive") {
+            console.warn("[Live Video] No dedicated audio recorder — skipping speech.");
+            resolve(null);
+            return;
+          }
+          ar.onstop = () => {
+            const aType = audioMimeType || "audio/webm";
+            const aExt = aType.includes("ogg") ? "ogg" : "webm";
+            const aBlob = new Blob(videoAudioChunksRef.current, {
+              type: aType,
+            });
+            console.log("[Live Video] Audio blob size:", aBlob.size, "bytes");
+            if (aBlob.size === 0) {
+              console.error("[Live Video] Audio blob is empty — no microphone audio captured.");
+              resolve(null);
+              return;
+            }
+            resolve(new File([aBlob], `audio.${aExt}`, { type: aType }));
+          };
+          ar.stop();
+        });
+
+        const fd = new FormData();
+        fd.append("file", file);
+
+        setLoading(true);
+        setShowCamera(false);
+
+        try {
+          console.log("[Live Video] Sending video for emotion detection + audio for transcription (parallel)...");
+
+          const [vidResult, transResult] = await Promise.all([
+            api.post("/upload-video", fd).catch((err) => {
+              console.error("[Live Video] /upload-video failed:", err);
+              return null;
+            }),
+            (async () => {
+              if (!speechFile) return "";
+              console.log("[Live Video] Sending audio to /transcribe");
+              return transcribeFile(speechFile);
+            })(),
+          ]);
+
+          const vidData = vidResult?.data;
+          let emotion: string | null = null;
+          let emotionConfidence: number | null = null;
+          let analysis: any = null;
+          let chatbotReply = "";
+
+          if (vidData?.error) {
+            showError(`Video analysis failed: ${vidData.error}`);
+          } else if (vidData) {
+            emotion = String(
+              vidData.emotion || vidData.dominant_emotion || "neutral"
+            ).toLowerCase();
+            analysis = vidData.analysis || null;
+            emotionConfidence =
+              typeof analysis?.confidence === "number" ? analysis.confidence : null;
+            chatbotReply = String(vidData.chatbot_reply || "");
+            console.log("[Live Video] Detected emotion:", emotion, "frames:", vidData.frames_analyzed);
+
+            setDetectedEmotion(emotion);
+            setDetectedEmotionConfidence(emotionConfidence);
+
+            // Format facial emotion breakdown (supports multi-person and distribution)
+            let emotionDisplay = `📷 Facial Emotion: ${emotion.charAt(0).toUpperCase()}${emotion.slice(1)}`;
+            if (Array.isArray(vidData.people) && vidData.people.length > 1) {
+              const lines = vidData.people.map((p: any) =>
+                `  • Person ${p.person_id}: ${String(p.dominant_emotion || "neutral").toUpperCase()} (${p.confidence || 0}%)`
+              );
+              emotionDisplay = `📷 Facial Emotion Analysis (Multiple People Detected):\n${lines.join("\n")}`;
+            } else if (vidData.emotion_distribution && Object.keys(vidData.emotion_distribution).length > 0) {
+              const sorted = Object.entries(vidData.emotion_distribution)
+                .sort((a: any, b: any) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([emo, pct]) => `${emo.charAt(0).toUpperCase() + emo.slice(1)} (${pct}%)`)
+                .join(" | ");
+              if (sorted) {
+                emotionDisplay = `📷 Facial Emotion: ${sorted}`;
+              }
+            }
+            appendAssistantMessage(emotionDisplay);
+          }
+
+          const transcript = (transResult || "").trim();
+          console.log("[Live Video] Transcription result:", transcript ? `"${transcript.slice(0, 60)}"` : "(empty)");
+
+          if (transcript) {
+            console.log("[Live Video] Sending transcript to /chat");
+            await submitTranscriptToChat(transcript, emotion, emotionConfidence);
+          } else if (chatbotReply) {
+            appendAssistantMessage(chatbotReply, analysis);
+          }
+        } catch (error: any) {
+          console.error("[Live Video] Emotion detection failed:", error);
+          const detail =
+            error?.response?.data?.detail ||
+            error?.response?.data?.error ||
+            error?.message ||
+            "Unknown error";
+          showError(`Unable to detect facial emotion: ${detail}`);
+        } finally {
+          setLoading(false);
+          stream.getTracks().forEach((track) => track.stop());
+          if (dedicatedAudioStream) {
+            dedicatedAudioStream.getTracks().forEach((track) => track.stop());
+          }
+        }
+      };
+
+      recorder.start();
+      setIsVideoRecording(true);
+      console.log("[Live Video] Recording started.");
+    } catch (error) {
+      console.error("[Live Video] Failed to start recording:", error);
+      showError("Unable to start camera recording.");
     }
   };
+
 
   const stopVideoRecording = () => {
     videoRecorderRef.current?.stop();
@@ -520,7 +860,7 @@ export default function ChatPage() {
               <motion.div 
                 initial={{ opacity: 0, y: 15, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                key={i} 
+                key={m.id ?? i} 
                 className={`flex w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {m.role === 'assistant' && (
@@ -529,22 +869,61 @@ export default function ChatPage() {
                   </div>
                 )}
                 
-                <div 
-                  className={`group relative max-w-[85%] md:max-w-[75%] px-5 py-4 rounded-2xl shadow-sm text-[16px] leading-relaxed
-                    ${m.role === 'user' 
-                      ? 'bg-blue-600 text-white rounded-br-sm' 
-                      : 'bg-[#1e293b] border border-white/10 text-gray-100 rounded-bl-sm'}`}
-                >
-                  <div className="whitespace-pre-wrap">{m.content}</div>
-                  
-                  {m.role === 'assistant' && (
-                    <button 
-                      onClick={() => playTTS(m.content)}
-                      className="absolute -right-12 bottom-1 p-2 rounded-full bg-[#1e293b] border border-white/10 text-gray-400 hover:text-white hover:bg-blue-500/20 transition-all opacity-0 group-hover:opacity-100 shadow-lg"
-                      title="Read aloud"
-                    >
-                      <Volume2 size={18} />
-                    </button>
+                <div className="flex flex-col gap-2 max-w-[85%] md:max-w-[75%]">
+                  <div 
+                    className={`group relative px-5 py-4 rounded-2xl shadow-sm text-[16px] leading-relaxed
+                      ${m.role === 'user' 
+                        ? 'bg-blue-600 text-white rounded-br-sm' 
+                        : 'bg-[#1e293b] border border-white/10 text-gray-100 rounded-bl-sm'}`}
+                  >
+                    <div className="whitespace-pre-wrap">{m.content}</div>
+                    
+                    {m.role === 'assistant' && (
+                      <button 
+                        onClick={() => playTTS(m.content)}
+                        className="absolute -right-12 bottom-1 p-2 rounded-full bg-[#1e293b] border border-white/10 text-gray-400 hover:text-white hover:bg-blue-500/20 transition-all opacity-0 group-hover:opacity-100 shadow-lg"
+                        title="Read aloud"
+                      >
+                        <Volume2 size={18} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* ── NLP Analysis Badge ── */}
+                  {m.role === 'assistant' && m.analysis && (
+                    <div className="flex flex-col gap-1.5 pl-1">
+                      <div className="flex flex-wrap gap-2 text-[11px] font-medium">
+                        <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-gray-400" title="Automated conversational support indicator — not a clinical diagnosis">
+                          🧠 Emotional State: <span className="text-gray-200">
+                            {m.analysis.mental_state === 'Depression' ? 'Low Mood / Sadness' :
+                             m.analysis.mental_state === 'Suicidal' ? 'Crisis / Urgent Support' :
+                             m.analysis.mental_state === 'Anxiety' ? 'Anxiety / Worry' :
+                             m.analysis.mental_state === 'Stress' ? 'Elevated Stress' :
+                             m.analysis.mental_state === 'Normal' ? 'Balanced / Normal' :
+                             m.analysis.mental_state}
+                          </span>
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-gray-400">
+                          📊 Emotion Consistency: <span className="text-gray-200">{m.analysis.confidence}%</span>
+                        </span>
+                        <span className={`px-2.5 py-1 rounded-full border font-semibold ${
+                          m.analysis.risk_level === 'HIGH'
+                            ? 'bg-red-500/15 border-red-500/40 text-red-400'
+                            : m.analysis.risk_level === 'MEDIUM'
+                              ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-400'
+                              : 'bg-green-500/15 border-green-500/40 text-green-400'
+                        }`}>
+                          ⚠️ Risk: {m.analysis.risk_level}
+                        </span>
+                      </div>
+
+                      {m.analysis.risk_level === 'HIGH' && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] font-medium">
+                          <AlertTriangle size={14} className="flex-shrink-0" />
+                          Emergency emotional support may be needed.
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </motion.div>
@@ -583,7 +962,7 @@ export default function ChatPage() {
               </button>
               
               <div className="bg-black relative aspect-video flex items-center justify-center">
-                <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" className="w-full h-full object-cover" />
+                <Webcam audio={true} ref={webcamRef} screenshotFormat="image/jpeg" className="w-full h-full object-cover" />
                 {isVideoRecording && (
                   <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-500/80 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-sm font-medium">
                     <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
