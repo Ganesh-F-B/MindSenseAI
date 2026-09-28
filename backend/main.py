@@ -82,11 +82,12 @@ except Exception as e:
     print(f"⚠️ DeepFace unavailable: {e}")
 
 import models, schemas, auth
-from database import engine, get_db, SessionLocal
+from database import engine, get_db, SessionLocal, init_db_migrations
 from dotenv import load_dotenv
 
-# Create tables
+# Create tables and run additive schema migrations
 models.Base.metadata.create_all(bind=engine)
+init_db_migrations()
 
 load_dotenv(os.path.join(BACKEND_DIR, ".env"))
 
@@ -553,6 +554,16 @@ def send_emergency_email(to_email: str, user_name: str, contacts: list) -> bool:
         return False
 
 
+def mask_phone_number(phone: str) -> str:
+    """Mask phone number for privacy in server logs, e.g. +9198****10 or 98****10."""
+    if not phone:
+        return "****"
+    s = str(phone).strip()
+    if len(s) <= 4:
+        return "****"
+    return f"{s[:2]}****{s[-2:]}"
+
+
 def normalize_phone_india(number: str) -> str:
     """Strip to 10-digit Indian number for Fast2SMS."""
     cleaned = (
@@ -574,6 +585,8 @@ def send_sms_fast2sms(phone_numbers: list, message: str) -> bool:
         return False
     try:
         numbers = ",".join([normalize_phone_india(n) for n in phone_numbers])
+        masked = [mask_phone_number(n) for n in phone_numbers]
+        print(f"[SMS Fast2SMS] Dispatching to: {masked}")
         response = requests.post(
             "https://www.fast2sms.com/dev/bulkV2",
             headers={
@@ -584,7 +597,7 @@ def send_sms_fast2sms(phone_numbers: list, message: str) -> bool:
             timeout=10,
         )
         data = response.json()
-        print(f"[SMS Fast2SMS] Response: {data}")
+        print(f"[SMS Fast2SMS] Response status: {data.get('return')}")
         return data.get("return") == True
     except Exception as e:
         print(f"[SMS ERROR] Fast2SMS: {e}")
@@ -615,6 +628,8 @@ def send_sms_android_gateway(phone_numbers: list, message: str) -> bool:
         credentials = base64.b64encode(
             f"{SMS_GATE_LOGIN}:{SMS_GATE_PASSWORD}".encode()
         ).decode()
+        masked = [mask_phone_number(n) for n in phone_numbers]
+        print(f"[SMS Gate] Dispatching to: {masked}")
         response = requests.post(
             "https://api.sms-gate.app/3rdparty/v1/message",
             headers={
@@ -625,7 +640,7 @@ def send_sms_android_gateway(phone_numbers: list, message: str) -> bool:
             timeout=15,
         )
         data = response.json()
-        print(f"[SMS Gate] Response: {data}")
+        print(f"[SMS Gate] Response received: id={data.get('id', 'N/A')}")
         # Success if we get an id back
         return "id" in data or response.status_code == 202
     except Exception as e:
@@ -652,7 +667,7 @@ def send_whatsapp_callmebot(contacts: list, message: str) -> bool:
             url = f"https://api.callmebot.com/whatsapp.php?phone={phone}&text={encoded_msg}&apikey={key}"
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
-                print(f"[WhatsApp SENT ✓] → {c.name} ({phone})")
+                print(f"[WhatsApp SENT ✓] → {c.name} ({mask_phone_number(phone)})")
                 sent += 1
             else:
                 print(f"[WhatsApp ERROR] {c.name}: {resp.text[:100]}")
@@ -689,12 +704,12 @@ def send_whatsapp_greenapi(phone_numbers: list, message: str) -> bool:
             )
             data = resp.json()
             if resp.status_code == 200 and data.get("idMessage"):
-                print(f"[WhatsApp Green API ✓] → {number}")
+                print(f"[WhatsApp Green API ✓] → {mask_phone_number(number)}")
                 sent += 1
             else:
-                print(f"[WhatsApp Green API ERROR] {number}: {data}")
+                print(f"[WhatsApp Green API ERROR] {mask_phone_number(number)}: {data}")
         except Exception as e:
-            print(f"[WhatsApp Green API ERROR] {number}: {e}")
+            print(f"[WhatsApp Green API ERROR] {mask_phone_number(number)}: {e}")
     return sent > 0
 
 
@@ -731,12 +746,12 @@ def send_whatsapp_meta(phone_numbers: list, message: str) -> bool:
             resp = requests.post(url, headers=headers, json=payload, timeout=15)
             data = resp.json()
             if resp.status_code == 200 and data.get("messages"):
-                print(f"[Meta WA SENT ✓] → {number}")
+                print(f"[Meta WA SENT ✓] → {mask_phone_number(number)}")
                 sent += 1
             else:
-                print(f"[Meta WA ERROR] {number}: {data}")
+                print(f"[Meta WA ERROR] {mask_phone_number(number)}: {data}")
         except Exception as e:
-            print(f"[Meta WA ERROR] {number}: {e}")
+            print(f"[Meta WA ERROR] {mask_phone_number(number)}: {e}")
     return sent > 0
 
 
@@ -744,8 +759,15 @@ def send_whatsapp_meta(phone_numbers: list, message: str) -> bool:
 
 
 @app.post("/emergency")
-def trigger_emergency(current_user: models.User = Depends(get_current_user)):
-    contacts = current_user.emergency_contacts
+def trigger_emergency(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    contacts = (
+        db.query(models.EmergencyContact)
+        .filter(models.EmergencyContact.user_id == current_user.id)
+        .all()
+    )
     if not contacts:
         return {
             "message": "No emergency contacts found. Please add contacts in your Profile page."
@@ -783,7 +805,7 @@ def trigger_emergency(current_user: models.User = Depends(get_current_user)):
             "message": f"✅ Emergency alert sent via {' + '.join(results)} to {contacts_display}."
         }
     else:
-        manual = ", ".join([f"{c.name} ({c.phone_number})" for c in contacts])
+        manual = ", ".join([f"{c.name} ({mask_phone_number(c.phone_number)})" for c in contacts])
         return {
             "message": f"⚠️ Notifications not configured yet. Please call manually: {manual}"
         }
@@ -948,6 +970,87 @@ def _wrap_predictor_for_timing(predictor, timings: dict, stage_name: str):
     return predictor
 
 
+def _is_imminent_crisis(text: str) -> bool:
+    """Detect immediate, active harm intent, explicit suicide plan, or imminent action."""
+    if not text:
+        return False
+    t = text.lower()
+    t = re.sub(r"['’`]", "", t)
+    t_norm = re.sub(r"[^\w\s]", " ", t)
+    t_norm = re.sub(r"\s+", " ", t_norm).strip()
+
+    imminent_patterns = [
+        r"\b(?:going to|gonna|about to|will|planning to)\s+(?:kill|end|hurt|harm|slit|hang|overdose|shoot)\s+(?:myself|my life)\b",
+        r"\b(?:kill|end|hurt|harm)\s+myself\s+(?:right\s+now|now|today|tonight|immediately|this\s+second|this\s+moment)\b",
+        r"\b(?:taking|swallowing|downing|drank|drinking)\s+(?:all\s+the\s+)?(?:pills|poison|medicine|tablets)\b",
+        r"\b(?:have|got)\s+(?:the\s+)?(?:pills|poison|medicine|tablets|knife|blade|gun|rope)\b.*\b(?:taking|swallowing|downing|using)\s+them\b",
+        r"\b(?:taking|swallowing|downing)\s+(?:them|the\s+pills|all\s+the\s+pills|pills|poison)\s+(?:now|right\s+now|today|tonight)\b",
+        r"\b(?:have|got)\s+(?:the\s+)?(?:pills|knife|gun|rope|blade)\s+(?:in\s+(?:my\s+)?hand|ready|with\s+me)\b",
+        r"\b(?:about\s+to|going\s+to|gonna|ready\s+to)\s+jump\b",
+        r"\b(?:this\s+is\s+my\s+)?(?:final|last)\s+(?:goodbye|farewell|message|note)\b",
+        r"\bgoodbye\s+(?:everyone|all|cruel\s+world|forever)\b",
+        r"\b(?:i\s+am|im)\s+ending\s+it\s+(?:all\s+)?(?:right\s+now|now|today|tonight)\b",
+        r"\b(?:i\s+am|im)\s+doing\s+it\s+(?:right\s+now|now|today|tonight)\b",
+    ]
+    for pat in imminent_patterns:
+        if re.search(pat, t_norm):
+            return True
+    return False
+
+
+def _is_deescalation_reassurance(text: str) -> bool:
+    """Detect clear reassurance of safety, de-escalation, life-affirmation, or rejection of self-harm."""
+    if not text:
+        return False
+    t = text.lower()
+    t = re.sub(r"['’`]", "", t)
+    t_norm = re.sub(r"[^\w\s]", " ", t)
+    t_norm = re.sub(r"\s+", " ", t_norm).strip()
+
+    deescalation_patterns = [
+        r"\b(?:i\s+am|im)\s+(?:safe|fine|okay|alright|doing\s+okay|feeling\s+better|much\s+better)\b",
+        r"\b(?:yes|yeah|yep|sure)\s*,?\s*(?:i\s+am|im)\s+safe\b",
+        r"\b(?:no|nope)\s*,?\s*(?:i\s+am|im)\s+safe\b",
+        r"\b(?:no|nope)\s*,?\s*(?:i\s+am|im)\s+not\s+(?:going\s+to|gonna)\s+(?:do\s+it|hurt\s+myself|harm\s+myself|kill\s+myself)\b",
+        r"\b(?:i\s+)?am\s+in\s+a\s+safe\s+place\b",
+        r"\b(?:safe\s+right\s+now|safe\s+here|currently\s+safe)\b",
+        r"\b(?:please\s+)?(?:dont|do\s+not)\s+send\s+(?:anyone|anybody|help|an?\s+alert|police)\b",
+        r"\b(?:i\s+)?(?:want|wanna)\s+things\s+to\s+get\s+better\b",
+        r"\bi\s+(?:will|gonna)\s+be\s+okay\b",
+        r"\b(?:i\s+am|im)\s+not\s+(?:going\s+to|gonna)\s+(?:hurt|harm|kill)\s+myself\b",
+        r"\b(?:dont|do\s+not|never|wont|will\s+not)\s+want\s+to\s+die\b",
+        r"\b(?:i\s+)?want\s+to\s+(?:live|keep\s+living|survive|stay\s+alive)\b",
+        r"\b(?:i\s+)?will\s+not\s+die\b",
+        r"\b(?:i\s+)?wont\s+die\b",
+        r"\b(?:i\s+am|im)\s+not\s+suicidal\b",
+        r"\bno\s+imminent\s+danger\b",
+        r"\bnot\s+going\s+to\s+hurt\s+myself\b",
+    ]
+    for pat in deescalation_patterns:
+        if re.search(pat, t_norm):
+            return True
+    return False
+
+
+def _is_historical_crisis(text: str) -> bool:
+    """Detect past-tense or historical crisis expressions where user is currently stable or coping."""
+    if not text:
+        return False
+    t = text.lower()
+    t = re.sub(r"['’`]", "", t)
+    t_norm = re.sub(r"[^\w\s]", " ", t)
+    t_norm = re.sub(r"\s+", " ", t_norm).strip()
+
+    past_markers = r"\b(?:felt\s+like\s+dying|felt\s+like|was\s+feeling|had\s+(?:suicidal\s+thoughts|thoughts\s+of\s+dying)|used\s+to|was\s+suicidal|earlier\s+today|yesterday|previously|last\s+(?:week|month|year))\b"
+    current_coping = r"\b(?:better|fine|okay|alright|recovering|safe|doing\s+well|in\s+control|under\s+control|things\s+under\s+control|handled\s+it|past\s+it|moved\s+on)\b"
+
+    if re.search(past_markers, t_norm) and re.search(current_coping, t_norm):
+        return True
+    if re.search(r"\b(?:felt\s+like\s+dying\s+earlier|was\s+suicidal\s+before|used\s+to\s+want\s+to\s+die|used\s+to\s+be\s+suicidal)\b", t_norm):
+        return True
+    return False
+
+
 @app.post("/chat")
 def chat(
     data: ChatRequest,
@@ -965,7 +1068,21 @@ def chat(
     reply_final = (
         "I'm here with you. I had trouble generating a response, but I'm listening."
     )
+    intent = ""
     session_id = data.session_id or 0
+    session = None
+    if session_id:
+        session = (
+            db.query(models.ChatSession)
+            .filter(models.ChatSession.id == session_id)
+            .first()
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="Chat session not found.")
+        if session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403, detail="Access denied to requested chat session."
+            )
 
     try:
         detected_lang = detect_language(data.message)
@@ -1044,24 +1161,30 @@ def chat(
             lang_name = "English"
             lang_script = "latin"
 
-        if not session_id:
+        if not session:
             try:
                 title = (
                     data.message[:30] + "..."
                     if len(data.message) > 30
                     else data.message
                 )
-                new_session = models.ChatSession(user_id=current_user.id, title=title)
-                db.add(new_session)
+                session = models.ChatSession(
+                    user_id=current_user.id,
+                    title=title,
+                    crisis_state="no_active_crisis",
+                    escalation_level="none",
+                )
+                db.add(session)
                 db.commit()
-                db.refresh(new_session)
-                session_id = new_session.id
+                db.refresh(session)
+                session_id = session.id
             except Exception as exc:
                 logger.exception("Failed to create chat session")
                 db.rollback()
+                session = None
                 session_id = 0
 
-        if session_id:
+        if session and session_id:
             try:
                 user_msg = models.ChatHistory(
                     session_id=session_id, role="user", content=data.message
@@ -1225,40 +1348,201 @@ def chat(
         if ai_crisis:
             reply_final = reply_final.replace("[EMERGENCY_TRIGGERED]", "").strip()
 
-        # Check crisis triggers safely
-        is_crisis_state = (
-            (not is_negated_crisis and intent == "suicidal_thought")
-            or keyword_crisis
-            or ai_crisis
-            or (
-                not is_negated_crisis
-                and analysis.get("mental_state") == "Suicidal"
-                and analysis.get("confidence", 0.0) >= 70
+        # Check crisis triggers
+        raw_msg = data.message or ""
+        trans_msg = translated_input or ""
+
+        is_historical = _is_historical_crisis(raw_msg) or _is_historical_crisis(trans_msg)
+        is_imminent = _is_imminent_crisis(raw_msg) or _is_imminent_crisis(trans_msg)
+        is_deescalating = (
+            _is_deescalation_reassurance(raw_msg)
+            or _is_deescalation_reassurance(trans_msg)
+            or is_negated_crisis
+        )
+
+        is_crisis_detected = (
+            not is_historical
+            and not is_negated_crisis
+            and (
+                intent == "suicidal_thought"
+                or keyword_crisis
+                or ai_crisis
+                or (
+                    analysis.get("mental_state") == "Suicidal"
+                    and analysis.get("confidence", 0.0) >= 70
+                )
             )
         )
 
-        if is_crisis_state:
-            crisis_markers = ["pain", "safe", "danger", "988", "tele-manas", "crisis", "alone", "emergency"]
-            if not any(marker in reply_final.lower() for marker in crisis_markers):
-                reply_final = (
-                    "I hear how much pain you are experiencing right now, and your safety is the most important thing. "
-                    "Please know that you do not have to go through this alone. Can you tell me if you are in a safe place right now?"
-                )
-            contacts = current_user.emergency_contacts or []
-            now = datetime.utcnow()
-            last_alert = _last_alert_time.get(session_id)
-            cooldown_active = (
-                last_alert is not None
-                and (now - last_alert).total_seconds() < ALERT_COOLDOWN_MINUTES * 60
+        current_state = (
+            getattr(session, "crisis_state", "no_active_crisis") or "no_active_crisis"
+        )
+        current_level = getattr(session, "escalation_level", "none") or "none"
+        last_alert = getattr(session, "last_alert_at", None) or _last_alert_time.get(
+            session_id
+        )
+
+        should_dispatch_alert = False
+        dispatch_level = "none"
+
+        if is_historical:
+            # Case E: Past crisis acknowledged, stable now.
+            if current_state == "crisis_assessing":
+                if session:
+                    session.crisis_state = "resolved"
+                    session.escalation_level = "none"
+            if analysis.get("mental_state") == "Suicidal":
+                analysis["mental_state"] = "Normal"
+                analysis["risk_level"] = "LOW"
+            reply_final = (
+                "Thank you for sharing that with me. It takes real courage to navigate those dark moments, "
+                "and I am truly glad to hear that you are doing better now. I'm always here whenever you need a safe space to talk."
             )
-            if contacts and not cooldown_active:
-                _last_alert_time[session_id] = now
-                phone_numbers = [c.phone_number for c in contacts]
-                alert_text = (
-                    f"🚨 URGENT: {current_user.full_name} is showing signs of emotional crisis "
-                    f"and may need immediate support. This is an automated alert from MindSense AI. "
-                    f"Please check on them immediately."
+
+        elif is_imminent:
+            # Case D: Clear imminent intent bypass
+            if session:
+                session.crisis_state = "escalated"
+                session.escalation_level = "imminent"
+            analysis["mental_state"] = "Suicidal"
+            analysis["risk_level"] = "HIGH"
+            dispatch_level = "imminent"
+
+            # Check cooldown: Imminent overrides cooldown unless already alerted at imminent level recently
+            cooldown_active = False
+            if last_alert is not None:
+                seconds_since_alert = (datetime.utcnow() - last_alert).total_seconds()
+                if seconds_since_alert < ALERT_COOLDOWN_MINUTES * 60:
+                    if current_level == "imminent":
+                        cooldown_active = True
+                    else:
+                        cooldown_active = False  # Higher risk imminent overrides lower level alert cooldown!
+
+            if not cooldown_active:
+                should_dispatch_alert = True
+
+            reply_final = (
+                "I hear how much pain you are experiencing right now, and your safety is the absolute most important thing. "
+                "Please stay with me, and please reach out to someone who can help keep you safe right now."
+            )
+
+        elif current_state == "crisis_assessing":
+            # Session was waiting for safety assessment from previous turn
+            if is_deescalating:
+                # Case B: Safety affirmed / de-escalation
+                if session:
+                    session.crisis_state = "resolved"
+                    session.escalation_level = "none"
+                if analysis.get("mental_state") == "Suicidal":
+                    analysis["mental_state"] = "Normal"
+                    analysis["risk_level"] = "LOW"
+                reply_final = (
+                    "I am so glad to hear that you are safe. Thank you for telling me. "
+                    "Remember that you are not alone, and I am here whenever you want to talk or need support."
                 )
+            else:
+                # Case C: Continuing distress, rejected support, or persistent crisis in assessment
+                if session:
+                    session.crisis_state = "escalated"
+                    session.escalation_level = "escalated"
+                analysis["mental_state"] = "Suicidal"
+                analysis["risk_level"] = "HIGH"
+                dispatch_level = "escalated"
+
+                cooldown_active = False
+                if last_alert is not None:
+                    seconds_since_alert = (
+                        datetime.utcnow() - last_alert
+                    ).total_seconds()
+                    if seconds_since_alert < ALERT_COOLDOWN_MINUTES * 60:
+                        cooldown_active = True
+
+                if not cooldown_active:
+                    should_dispatch_alert = True
+
+                reply_final = (
+                    "I hear you, and I can sense how overwhelming things feel right now. "
+                    "You don't have to carry this alone. Please connect with emergency support or someone you trust right now."
+                )
+
+        elif current_state == "escalated":
+            # Session was already escalated
+            if is_deescalating:
+                if session:
+                    session.crisis_state = "resolved"
+                    session.escalation_level = "none"
+                if analysis.get("mental_state") == "Suicidal":
+                    analysis["mental_state"] = "Normal"
+                    analysis["risk_level"] = "LOW"
+                reply_final = (
+                    "I am so relieved to hear that you are safe right now. Thank you for checking in with me. "
+                    "I'm here to support you at your own pace."
+                )
+            else:
+                # User remains in escalated state
+                if session:
+                    session.crisis_state = "escalated"
+                    session.escalation_level = "escalated"
+                analysis["mental_state"] = "Suicidal"
+                analysis["risk_level"] = "HIGH"
+
+                cooldown_active = False
+                if last_alert is not None:
+                    seconds_since_alert = (
+                        datetime.utcnow() - last_alert
+                    ).total_seconds()
+                    if seconds_since_alert < ALERT_COOLDOWN_MINUTES * 60:
+                        cooldown_active = True
+
+                if not cooldown_active:
+                    should_dispatch_alert = True
+                    dispatch_level = "escalated"
+
+                reply_final = (
+                    "I hear how much pain you are experiencing right now, and I care very much about your safety. "
+                    "Please stay connected, and please know that you are not alone in this."
+                )
+
+        elif current_state in {"no_active_crisis", "resolved"} and is_crisis_detected:
+            # Case A: First crisis statement detected (when state was no_active_crisis or resolved)
+            # Enter CRISIS_ASSESSING. Do NOT dispatch emergency alert yet!
+            if session:
+                session.crisis_state = "crisis_assessing"
+                session.escalation_level = "assessing"
+            should_dispatch_alert = False
+
+            reply_final = (
+                "I hear how much pain you are experiencing right now, and your safety is the most important thing. "
+                "Please know that you do not have to go through this alone. Can you tell me if you are in a safe place right now?"
+            )
+
+        # Dispatch alert if determined by state machine
+        if should_dispatch_alert:
+            now = datetime.utcnow()
+            if session:
+                session.last_alert_at = now
+            _last_alert_time[session_id] = now
+
+            contacts = (
+                db.query(models.EmergencyContact)
+                .filter(models.EmergencyContact.user_id == current_user.id)
+                .all()
+            )
+            if contacts:
+                phone_numbers = [c.phone_number for c in contacts]
+                if dispatch_level == "imminent":
+                    alert_text = (
+                        f"🚨 IMMEDIATE CRISIS ALERT: {current_user.full_name} has expressed immediate intent of self-harm "
+                        f"and requires urgent intervention. This is an automated alert from MindSense AI. "
+                        f"Please contact them or emergency services immediately."
+                    )
+                else:
+                    alert_text = (
+                        f"🚨 URGENT: {current_user.full_name} is showing signs of emotional crisis "
+                        f"and may need immediate support. This is an automated alert from MindSense AI. "
+                        f"Please check on them immediately."
+                    )
+
                 try:
                     send_whatsapp_greenapi(phone_numbers, alert_text)
                 except Exception:
@@ -1273,10 +1557,18 @@ def chat(
                     )
                 except Exception:
                     logger.exception("Email alert dispatch failed")
+            else:
+                print(
+                    f"[Crisis Alert] No emergency contacts configured for user {current_user.id}. Skipping dispatch."
+                )
 
-            # ── PRIVACY-PRESERVING & SUPPORTIVE RESPONSE ──
-            # Do NOT expose emergency contacts, channels, or notifications in the chat reply.
-            # Provide supportive, confidential crisis helpline resources.
+        # Append helpline resources for assessing or escalated crisis states
+        active_crisis_state = (
+            getattr(session, "crisis_state", "no_active_crisis")
+            if session
+            else "no_active_crisis"
+        )
+        if active_crisis_state in {"crisis_assessing", "escalated"}:
             helpline_text = (
                 "\n\n💙 If you are in immediate distress or need to speak with someone right now, "
                 "please know that free, confidential support is available 24/7:\n"
@@ -1289,15 +1581,11 @@ def chat(
 
         database_start = time.perf_counter()
         try:
-            assistant_msg = models.ChatHistory(
-                session_id=session_id, role="assistant", content=reply_final
-            )
-            db.add(assistant_msg)
-            session = (
-                db.query(models.ChatSession)
-                .filter(models.ChatSession.id == session_id)
-                .first()
-            )
+            if session_id:
+                assistant_msg = models.ChatHistory(
+                    session_id=session_id, role="assistant", content=reply_final
+                )
+                db.add(assistant_msg)
             if session:
                 session.updated_at = datetime.utcnow()
             db.commit()
@@ -1319,8 +1607,19 @@ def chat(
         if bottleneck[1] > 1.0:
             print(f"[BOTTLENECK] {bottleneck[0]} ({bottleneck[1]:.2f}s)")
 
-        return {"reply": reply_final, "session_id": session_id, "analysis": analysis}
+        return {
+            "reply": reply_final,
+            "session_id": session_id,
+            "analysis": analysis,
+            "crisis_state": (
+                getattr(session, "crisis_state", "no_active_crisis")
+                if session
+                else "no_active_crisis"
+            ),
+        }
 
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Unexpected /chat failure")
         db.rollback()
@@ -1328,6 +1627,11 @@ def chat(
             "reply": "I'm here with you. I had trouble processing that message, but I'm listening.",
             "session_id": session_id,
             "analysis": analysis,
+            "crisis_state": (
+                getattr(session, "crisis_state", "no_active_crisis")
+                if session
+                else "no_active_crisis"
+            ),
         }
 
 

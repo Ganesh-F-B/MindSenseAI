@@ -131,11 +131,11 @@ class ChatEngine:
 
         negated_distress_patterns = [
             # 1. Subject/verb + negation + distress adjective/noun/state
-            r"\b(?:i\s+)?(?:am|im|feel|feeling)\s+(?:definitely|certainly|really|honestly|actually|necessarily)?\s*(?:not|never|by\s+no\s+means)\s+(?:feeling\s+|feel\s+|being\s+)?\s*(?:too\s+|very\s+|particularly\s+|especially\s+|overly\s+|remotely\s+|in\s+any\s+way\s+|at\s+all\s+|any\s+)?(?:sad|unhappy|depressed|miserable|down|hopeless|gloomy|blue|stressed|overwhelmed|under\s+pressure|pressured|strained|burned\s+out|burnt\s+out|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fearful|fear|apprehensive|apprehension|angry|mad|furious|irritated|annoyed|pissed|enraged|frustrated|upset|distressed|troubled|bothered|bad|terrible|horrible|awful)\b",
+            r"\b(?:i\s+)?(?:am|im|feel|feeling)\s+(?:definitely|certainly|really|honestly|actually|necessarily)?\s*(?:not|never|by\s+no\s+means)\s+(?:feeling\s+|feel\s+|being\s+)?\s*(?:too\s+|very\s+|particularly\s+|especially\s+|overly\s+|remotely\s+|in\s+any\s+way\s+|at\s+all\s+|any\s+)?(?:sad|unhappy|depressed|miserable|down|low|hopeless|gloomy|blue|stressed|overwhelmed|under\s+pressure|pressured|strained|burned\s+out|burnt\s+out|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fearful|fear|apprehensive|apprehension|angry|mad|furious|irritated|annoyed|pissed|enraged|frustrated|upset|distressed|troubled|bothered|bad|terrible|horrible|awful)\b",
             # 2. Auxiliary negation: don't/didn't/wouldn't/haven't/can't feel/say/seem ...
-            r"\b(?:dont|do\s+not|didnt|did\s+not|havent|have\s+not|hadnt|had\s+not|wouldnt|would\s+not|cant|cannot|aint)\s+(?:really\s+|definitely\s+|actually\s+|necessarily\s+|even\s+)?(?:been\s+)?(?:feel|feeling|seem|say\s+(?:that\s+)?(?:im|i\s+am|i\s+feel)?)\s*(?:like\s+im\s+)?(?:particularly\s+|especially\s+|overly\s+|too\s+|very\s+|any\s+|remotely\s+|all\s+that\s+)?(?:sad|unhappy|depressed|miserable|down|hopeless|gloomy|stressed|overwhelmed|under\s+pressure|pressured|strained|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fear|apprehensive|angry|mad|furious|irritated|annoyed|pissed|frustrated|upset|distressed|troubled|bad)\b",
+            r"\b(?:dont|do\s+not|didnt|did\s+not|havent|have\s+not|hadnt|had\s+not|wouldnt|would\s+not|cant|cannot|aint)\s+(?:really\s+|definitely\s+|actually\s+|necessarily\s+|even\s+)?(?:been\s+)?(?:feel|feeling|seem|say\s+(?:that\s+)?(?:im|i\s+am|i\s+feel)?)\s*(?:like\s+im\s+)?(?:particularly\s+|especially\s+|overly\s+|too\s+|very\s+|any\s+|remotely\s+|all\s+that\s+)?(?:sad|unhappy|depressed|miserable|down|low|hopeless|gloomy|stressed|overwhelmed|under\s+pressure|pressured|strained|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fear|apprehensive|angry|mad|furious|irritated|annoyed|pissed|frustrated|upset|distressed|troubled|bad)\b",
             # 3. Direct predicate negation: not sad, not feeling down, etc.
-            r"\bnot\s+(?:feeling\s+|feel\s+|being\s+)?\s*(?:really\s+|overly\s+|too\s+|very\s+|particularly\s+|especially\s+|any\s+)?(?:sad|unhappy|depressed|miserable|down|hopeless|stressed|overwhelmed|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fear|apprehensive|angry|mad|furious|irritated|annoyed|frustrated|upset|distressed|bad|terrible|horrible|awful)\b",
+            r"\bnot\s+(?:feeling\s+|feel\s+|being\s+)?\s*(?:really\s+|overly\s+|too\s+|very\s+|particularly\s+|especially\s+|any\s+)?(?:sad|unhappy|depressed|miserable|down|low|hopeless|stressed|overwhelmed|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fear|apprehensive|angry|mad|furious|irritated|annoyed|frustrated|upset|distressed|bad|terrible|horrible|awful)\b",
             # 4. Existence/possession negation: no stress, no pressure on me, etc.
             r"\b(?:there\s+is\s+|theres\s+|i\s+have\s+|have\s+|feel\s+)?(?:really\s+|truly\s+|absolutely\s+)?no\s+(?:stress|pressure|anxiety|worries|worry|fear|panic|dread|terror|apprehension|anger|resentment|depression|trouble|issues?|problems?)\b",
             r"\b(?:no\s+pressure\s+on\s+me|without\s+any\s+stress|free\s+of\s+stress|free\s+from\s+anxiety)\b",
@@ -352,12 +352,13 @@ class ChatEngine:
             }
 
         # ---------------- STRESS / WORKLOAD ----------------
+        # ---------------- STRESS / WORKLOAD ----------------
         stress_patterns = [
             r"\b(?:a\s+lot\s+of\s+work|lot\s+of\s+work|lots\s+of\s+work|too\s+much\s+work|so\s+much\s+work)\b",
             r"\b(?:many\s+tasks|too\s+many\s+tasks|work\s+to\s+complete|work\s+to\s+finish)\b",
             r"\b(?:deadlines?|work\s+pressure|pressure\s+from\s+work|under\s+pressure)\b",
-            r"\b(?:i\s+)?(?:am|im|feel|feeling)\s+(?:so\s+|very\s+|really\s+)?(?:stressed|overwhelmed|under\s+stress|stressed\s+out)\b",
-            r"\b(?:stressed\s+because|stressed\s+out|presentations?\s+this\s+week)\b",
+            r"\b(?:i\s+)?(?:am|im|feel|feeling)\s+(?:so\s+|very\s+|really\s+)?(?:stre+ss+ed|overwhelmed|under\s+stre+ss+|stre+ss+ed\s+out)\b",
+            r"\b(?:stre+ss+ed\s+because|stre+ss+ed\s+out|presentations?\s+this\s+week)\b",
         ]
         if any(re.search(p, msg_clean) for p in stress_patterns):
             return {
@@ -365,7 +366,7 @@ class ChatEngine:
                 "emotion": "stress",
                 "intent_confidence": 0.98,
                 "emotion_confidence": 0.95,
-                "risk_level": "LOW",
+                "risk_level": "MEDIUM",
             }
 
         # ---------------- SLEEP ----------------
@@ -396,12 +397,12 @@ class ChatEngine:
                 "emotion": "sadness",
                 "intent_confidence": 1.0,
                 "emotion_confidence": 1.0,
-                "risk_level": "LOW",
+                "risk_level": "MEDIUM",
             }
 
         sadness_patterns = [
-            r"\b(?:i\s+)?(?:am|im|feel|feeling)\s+(?:so\s+|very\s+|really\s+|deeply\s+)?(?:sad|unhappy|miserable|down|hopeless|worthless|empty|broken)\b",
-            r"\b(?:feel\s+empty|feel\s+worthless|feel\s+hopeless|feeling\s+sad|feeling\s+down)\b",
+            r"\b(?:i\s+)?(?:am|im|feel|feeling|have\s+been\s+feeling|been\s+feeling)\s+(?:so\s+|very\s+|really\s+|deeply\s+|pretty\s+|quite\s+)?(?:sad|unhappy|miserable|down|low|hopeless|worthless|empty|broken)\b",
+            r"\b(?:feel\s+empty|feel\s+worthless|feel\s+hopeless|feeling\s+sad|feeling\s+down|feeling\s+low|feel\s+low)\b",
         ]
         if any(re.search(p, msg_clean) for p in sadness_patterns):
             return {
@@ -409,7 +410,7 @@ class ChatEngine:
                 "emotion": "sadness",
                 "intent_confidence": 1.0,
                 "emotion_confidence": 1.0,
-                "risk_level": "LOW",
+                "risk_level": "MEDIUM",
             }
 
         return None
@@ -444,7 +445,11 @@ class ChatEngine:
             ])
             has_addiction_cue = any(w in msg_lower for w in ["drug", "alcohol", "drink", "smoke", "addict", "substance", "weed", "pill", "sober", "relapse"])
             has_trauma_cue = any(w in msg_lower for w in ["trauma", "abuse", "ptsd", "assault", "accident", "flashback", "attacked"])
-            has_depression_cue = any(w in msg_lower for w in ["depress", "hopeless", "worthless", "empty", "sad", "miserable", "despair", "no motivation", "unhappy", "hurting", "crying", "lonely", "alone", "giving up", "low mood", "exhausted", "numb", "darkness", "bleak", "gloom"])
+            has_depression_cue = (
+                any(w in msg_lower for w in ["depress", "hopeless", "worthless", "empty", "sad", "miserable", "despair", "no motivation", "unhappy", "hurting", "crying", "lonely", "alone", "giving up", "low mood", "exhausted", "numb", "darkness", "bleak", "gloom"])
+                or bool(re.search(r"\b(?:feel|feeling|am|im|been)\s+(?:so\s+|very\s+|really\s+|pretty\s+|quite\s+)?low\b", msg_lower))
+                or bool(re.search(r"\bfeeling\s+low\b", msg_lower))
+            )
             has_grief_cue = any(w in msg_lower for w in ["passed away", "died", "loss", "grief", "lost my", "funeral", "mourning", "miss him", "miss her", "death of"])
             has_career_cue = any(w in msg_lower for w in ["career", "job", "profession", "future", "work", "major", "field", "degree", "college", "university", "interview", "resume", "confused", "which path", "promotion", "unemployed", "studying", "engineering", "switch", "boss", "coworker", "office"])
             has_relationship_cue = any(w in msg_lower for w in ["girlfriend", "boyfriend", "partner", "spouse", "husband", "wife", "dating", "relationship", "breakup", "broke up", "ex", "love", "cheated", "dumped", "divorce", "together", "fight with", "fighting with", "falling out"])
@@ -452,7 +457,10 @@ class ChatEngine:
             has_friendship_cue = any(w in msg_lower for w in ["friend", "friends", "friendship", "bestie", "pal", "buddy", "roommate", "classmate", "peers", "ignored me", "falling out"])
             has_sleep_cue = any(w in msg_lower for w in ["sleep", "sleeping", "insomnia", "sleepless", "nightmare", "awake", "tossing and turning", "bed", "pillow", "restless", "night"])
             has_anger_cue = any(w in msg_lower for w in ["anger", "angry", "mad", "furious", "pissed", "hate", "rage", "irritat", "annoy", "infuriat", "frustrat", "outrage", "blood boil"])
-            has_stress_cue = any(w in msg_lower for w in ["stress", "pressure", "overwhelm", "deadline", "burden", "burnout", "burnt out", "too much", "workload", "exhaust", "strain", "presentation", "racing", "tasks"])
+            has_stress_cue = (
+                bool(re.search(r"\bstre+ss+", msg_lower))
+                or any(w in msg_lower for w in ["stress", "pressure", "overwhelm", "deadline", "burden", "burnout", "burnt out", "too much", "workload", "exhaust", "strain", "presentation", "racing", "tasks"])
+            )
             has_anxiety_cue = any(w in msg_lower for w in ["anxious", "anxiety", "panic", "worry", "worried", "nervous", "scared", "fear", "afraid", "freaking out", "dread", "terrified", "apprehens"])
             has_self_esteem_cue = any(w in msg_lower for w in ["confidence", "self-esteem", "self esteem", "insecure", "ugly", "not good enough", "worthless", "hate myself", "failure", "loser", "inferior", "ashamed"])
 
@@ -526,7 +534,11 @@ class ChatEngine:
             # or factual sentences frequently trigger negative emotions falsely.
             msg_lower = (message or "").lower()
             has_anger_cue = any(w in msg_lower for w in ["angry", "mad", "furious", "hate", "pissed", "annoy", "irritat", "rage", "damn", "frustrat", "infuriat", "outrage", "blood boil"])
-            has_sadness_cue = any(w in msg_lower for w in ["sad", "depress", "unhappy", "cry", "miserable", "heartbroken", "grief", "hopeless", "lonely", "hurt", "pain", "loss", "mourn", "weep", "sobbing"])
+            has_sadness_cue = (
+                any(w in msg_lower for w in ["sad", "depress", "unhappy", "cry", "miserable", "heartbroken", "grief", "hopeless", "lonely", "hurt", "pain", "loss", "mourn", "weep", "sobbing", "low mood"])
+                or bool(re.search(r"\b(?:feel|feeling|am|im|been)\s+(?:so\s+|very\s+|really\s+|pretty\s+|quite\s+)?low\b", msg_lower))
+                or bool(re.search(r"\bfeeling\s+low\b", msg_lower))
+            )
             has_fear_cue = any(w in msg_lower for w in ["scared", "fear", "anxious", "anxiety", "panic", "terrified", "worried", "nervous", "afraid", "dread", "apprehens", "frightened", "alarmed", "uneasy"])
 
             if raw_emotion == "anger" and not has_anger_cue:

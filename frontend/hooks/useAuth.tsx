@@ -27,17 +27,20 @@ const getStoredToken = () => {
   return Cookies.get('token') || window.localStorage.getItem('token');
 };
 
-const persistToken = (token: string) => {
-  Cookies.set('token', token, { expires: 7, path: '/' });
+const clearStoredToken = () => {
+  Cookies.remove('token', { path: '/' });
+  Cookies.remove('token');
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem('token', token);
+    window.localStorage.removeItem('token');
+    window.sessionStorage.removeItem('token');
   }
 };
 
-const clearStoredToken = () => {
-  Cookies.remove('token', { path: '/' });
+const persistToken = (token: string) => {
+  clearStoredToken();
+  Cookies.set('token', token, { expires: 7, path: '/' });
   if (typeof window !== 'undefined') {
-    window.localStorage.removeItem('token');
+    window.localStorage.setItem('token', token);
   }
 };
 
@@ -69,6 +72,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (token: string) => {
+    setUser(null);
     persistToken(token);
     await checkAuth();
     router.push('/dashboard');

@@ -211,6 +211,12 @@ def _is_anxiety_context(text: str) -> bool:
         "i'm anxious",
         "i feel anxious",
         "feeling anxious",
+        "having anxiety",
+        "severe anxiety",
+        "panic attack",
+        "panic attacks",
+        "anxiety attack",
+        "anxiety attacks",
         "i am scared",
         "i'm scared",
         "i feel scared",
@@ -232,7 +238,22 @@ def _is_anxiety_context(text: str) -> bool:
 
 
 def _is_depression_context(text: str) -> bool:
+    if re.search(r"\b(?:i\s+)?(?:am|im|feel|feeling|have\s+been\s+feeling|been\s+feeling)\s+(?:so\s+|very\s+|really\s+|pretty\s+|quite\s+|deeply\s+)?low\b", text):
+        return True
+    if re.search(r"\bfeeling\s+low\b", text):
+        return True
+    if re.search(r"\blow\s+mood\b", text):
+        return True
+
     depression_phrases = [
+        "i feel low",
+        "i am low",
+        "im low",
+        "feeling low",
+        "feel low",
+        "feel really low",
+        "have been feeling low",
+        "been feeling low",
         "i feel sad",
         "i am sad",
         "i'm sad",
@@ -270,6 +291,11 @@ def _is_depression_context(text: str) -> bool:
 
 
 def _is_stress_context(text: str) -> bool:
+    if re.search(r"\b(?:i\s+)?(?:am|im|feel|feeling)\s+(?:so\s+|very\s+|really\s+|pretty\s+|quite\s+)?(?:stre+ss+ed|overwhelmed|under\s+stre+ss+|stre+ss+ed\s+out)\b", text):
+        return True
+    if re.search(r"\bstre+ss+ed\b", text):
+        return True
+
     stress_phrases = [
         "i am stressed",
         "i'm stressed",
@@ -394,11 +420,11 @@ def _is_negated_distress(text: str) -> bool:
 
     negated_patterns = [
         # 1. Subject/verb + negation + distress adjective/noun/state
-        r"\b(?:i\s+)?(?:am|im|feel|feeling)\s+(?:definitely|certainly|really|honestly|actually|necessarily)?\s*(?:not|never|by\s+no\s+means)\s+(?:feeling\s+|feel\s+|being\s+)?\s*(?:too\s+|very\s+|particularly\s+|especially\s+|overly\s+|remotely\s+|in\s+any\s+way\s+|at\s+all\s+|any\s+)?(?:sad|unhappy|depressed|miserable|down|hopeless|gloomy|blue|stressed|overwhelmed|under\s+pressure|pressured|strained|burned\s+out|burnt\s+out|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fearful|fear|apprehensive|apprehension|angry|mad|furious|irritated|annoyed|pissed|enraged|frustrated|upset|distressed|troubled|bothered|bad|terrible|horrible|awful)\b",
+        r"\b(?:i\s+)?(?:am|im|feel|feeling)\s+(?:definitely|certainly|really|honestly|actually|necessarily)?\s*(?:not|never|by\s+no\s+means)\s+(?:feeling\s+|feel\s+|being\s+)?\s*(?:too\s+|very\s+|particularly\s+|especially\s+|overly\s+|remotely\s+|in\s+any\s+way\s+|at\s+all\s+|any\s+)?(?:sad|unhappy|depressed|miserable|down|low|hopeless|gloomy|blue|stressed|overwhelmed|under\s+pressure|pressured|strained|burned\s+out|burnt\s+out|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fearful|fear|apprehensive|apprehension|angry|mad|furious|irritated|annoyed|pissed|enraged|frustrated|upset|distressed|troubled|bothered|bad|terrible|horrible|awful)\b",
         # 2. Auxiliary negation: don't/didn't/wouldn't/haven't/can't feel/say/seem ...
-        r"\b(?:dont|do\s+not|didnt|did\s+not|havent|have\s+not|hadnt|had\s+not|wouldnt|would\s+not|cant|cannot|aint)\s+(?:really\s+|definitely\s+|actually\s+|necessarily\s+|even\s+)?(?:been\s+)?(?:feel|feeling|seem|say\s+(?:that\s+)?(?:im|i\s+am|i\s+feel)?)\s*(?:like\s+im\s+)?(?:particularly\s+|especially\s+|overly\s+|too\s+|very\s+|any\s+|remotely\s+|all\s+that\s+)?(?:sad|unhappy|depressed|miserable|down|hopeless|gloomy|stressed|overwhelmed|under\s+pressure|pressured|strained|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fear|apprehensive|angry|mad|furious|irritated|annoyed|pissed|frustrated|upset|distressed|troubled|bad)\b",
+        r"\b(?:dont|do\s+not|didnt|did\s+not|havent|have\s+not|hadnt|had\s+not|wouldnt|would\s+not|cant|cannot|aint)\s+(?:really\s+|definitely\s+|actually\s+|necessarily\s+|even\s+)?(?:been\s+)?(?:feel|feeling|seem|say\s+(?:that\s+)?(?:im|i\s+am|i\s+feel)?)\s*(?:like\s+im\s+)?(?:particularly\s+|especially\s+|overly\s+|too\s+|very\s+|any\s+|remotely\s+|all\s+that\s+)?(?:sad|unhappy|depressed|miserable|down|low|hopeless|gloomy|stressed|overwhelmed|under\s+pressure|pressured|strained|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fear|apprehensive|angry|mad|furious|irritated|annoyed|pissed|frustrated|upset|distressed|troubled|bad)\b",
         # 3. Direct predicate negation: not sad, not feeling down, etc.
-        r"\bnot\s+(?:feeling\s+|feel\s+|being\s+)?\s*(?:really\s+|overly\s+|too\s+|very\s+|particularly\s+|especially\s+|any\s+)?(?:sad|unhappy|depressed|miserable|down|hopeless|stressed|overwhelmed|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fear|apprehensive|angry|mad|furious|irritated|annoyed|frustrated|upset|distressed|bad|terrible|horrible|awful)\b",
+        r"\bnot\s+(?:feeling\s+|feel\s+|being\s+)?\s*(?:really\s+|overly\s+|too\s+|very\s+|particularly\s+|especially\s+|any\s+)?(?:sad|unhappy|depressed|miserable|down|low|hopeless|stressed|overwhelmed|anxious|nervous|worried|scared|afraid|panicked|panic|dread|terrified|terror|fear|apprehensive|angry|mad|furious|irritated|annoyed|frustrated|upset|distressed|bad|terrible|horrible|awful)\b",
         # 4. Existence/possession negation: no stress, no pressure on me, etc.
         r"\b(?:there\s+is\s+|theres\s+|i\s+have\s+|have\s+|feel\s+)?(?:really\s+|truly\s+|absolutely\s+)?no\s+(?:stress|pressure|anxiety|worries|worry|fear|panic|dread|terror|apprehension|anger|resentment|depression|trouble|issues?|problems?)\b",
         r"\b(?:no\s+pressure\s+on\s+me|without\s+any\s+stress|free\s+of\s+stress|free\s+from\s+anxiety)\b",
@@ -633,7 +659,11 @@ def predict_mental_state(
     # 6. CLEAR ANXIETY / DEPRESSION / STRESS
     # ---------------------------------------------------------
     has_anger_cues = any(w in lower for w in ["angry", "mad", "furious", "hate", "pissed", "annoy", "irritat", "rage", "damn", "frustrat", "infuriat", "outrage", "blood boil"])
-    has_sad_cues = any(w in lower for w in ["sad", "unhapp", "depress", "cry", "wept", "tear", "down", "lonely", "alone", "hopeless", "hurt", "grief", "pain", "mourn", "weep", "sobbing", "heartbroken"])
+    has_sad_cues = (
+        any(w in lower for w in ["sad", "unhapp", "depress", "cry", "wept", "tear", "down", "lonely", "alone", "hopeless", "hurt", "grief", "pain", "mourn", "weep", "sobbing", "heartbroken", "low mood"])
+        or bool(re.search(r"\b(?:feel|feeling|am|im|been)\s+(?:so\s+|very\s+|really\s+|pretty\s+|quite\s+)?low\b", lower))
+        or bool(re.search(r"\bfeeling\s+low\b", lower))
+    )
     has_fear_cues = any(w in lower for w in ["scared", "fear", "anxious", "worry", "worried", "panic", "afraid", "nervous", "terrified", "dread", "apprehens", "frightened", "alarmed", "uneasy"])
 
     if _is_anxiety_context(lower) or validated_intent == "anxiety" or (validated_emotion == "fear" and has_fear_cues):

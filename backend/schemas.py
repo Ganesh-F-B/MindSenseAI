@@ -60,6 +60,9 @@ class ChatSessionCreate(ChatSessionBase):
 class ChatSession(ChatSessionBase):
     id: int
     user_id: int
+    crisis_state: Optional[str] = "no_active_crisis"
+    escalation_level: Optional[str] = "none"
+    last_alert_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

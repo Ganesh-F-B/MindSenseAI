@@ -1,0 +1,565 @@
+{
+  "i am stressed but": {
+    "text": "i am stressed but",
+    "clean_text": "i am stressed but",
+    "rule_analysis": {
+      "intent": "stress",
+      "emotion": "stress",
+      "intent_confidence": 0.98,
+      "emotion_confidence": 0.95,
+      "risk_level": "LOW"
+    },
+    "raw_intent": {
+      "intent": "stress",
+      "confidence": 0.35
+    },
+    "raw_emotion": {
+      "emotion": "sadness",
+      "confidence": 35.0,
+      "secondary": [],
+      "is_mixed": false,
+      "pattern": "fallback",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      }
+    },
+    "engine_analysis": {
+      "intent": "stress",
+      "emotion": "stress",
+      "intent_confidence": 0.98,
+      "emotion_confidence": 0.95,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule",
+      "distribution": null,
+      "source": "rule"
+    },
+    "flags": {
+      "_is_crisis": false,
+      "_is_negated_distress": false,
+      "_is_temporal_coping_context": false,
+      "_is_positive_context": false,
+      "_is_general_casual_context": false,
+      "_is_anxiety_context": false,
+      "_is_depression_context": false,
+      "_is_stress_context": true,
+      "_is_physical_health_context": false,
+      "_is_tired_context": false
+    },
+    "pred_res_without_args": {
+      "mental_state": "Stress",
+      "confidence": 98.0,
+      "risk_level": "MEDIUM",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule"
+    },
+    "pred_res_with_args": {
+      "mental_state": "Stress",
+      "confidence": 98.0,
+      "risk_level": "MEDIUM",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule"
+    }
+  },
+  "i feel low": {
+    "text": "i feel low",
+    "clean_text": "i feel low",
+    "rule_analysis": null,
+    "raw_intent": {
+      "intent": "stress",
+      "confidence": 0.35
+    },
+    "raw_emotion": {
+      "emotion": "sadness",
+      "confidence": 35.0,
+      "secondary": [],
+      "is_mixed": false,
+      "pattern": "fallback",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      }
+    },
+    "engine_analysis": {
+      "intent": "general",
+      "emotion": "neutral",
+      "intent_confidence": 0.5,
+      "emotion_confidence": 70.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      },
+      "source": "model"
+    },
+    "flags": {
+      "_is_crisis": false,
+      "_is_negated_distress": false,
+      "_is_temporal_coping_context": false,
+      "_is_positive_context": false,
+      "_is_general_casual_context": false,
+      "_is_anxiety_context": false,
+      "_is_depression_context": false,
+      "_is_stress_context": false,
+      "_is_physical_health_context": false,
+      "_is_tired_context": false
+    },
+    "pred_res_without_args": {
+      "mental_state": "Normal",
+      "confidence": 92.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated"
+    },
+    "pred_res_with_args": {
+      "mental_state": "Normal",
+      "confidence": 92.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated"
+    }
+  },
+  "i am stressed": {
+    "text": "i am stressed",
+    "clean_text": "i am stressed",
+    "rule_analysis": {
+      "intent": "stress",
+      "emotion": "stress",
+      "intent_confidence": 0.98,
+      "emotion_confidence": 0.95,
+      "risk_level": "LOW"
+    },
+    "raw_intent": {
+      "intent": "stress",
+      "confidence": 0.35
+    },
+    "raw_emotion": {
+      "emotion": "sadness",
+      "confidence": 35.0,
+      "secondary": [],
+      "is_mixed": false,
+      "pattern": "fallback",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      }
+    },
+    "engine_analysis": {
+      "intent": "stress",
+      "emotion": "stress",
+      "intent_confidence": 0.98,
+      "emotion_confidence": 0.95,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule",
+      "distribution": null,
+      "source": "rule"
+    },
+    "flags": {
+      "_is_crisis": false,
+      "_is_negated_distress": false,
+      "_is_temporal_coping_context": false,
+      "_is_positive_context": false,
+      "_is_general_casual_context": false,
+      "_is_anxiety_context": false,
+      "_is_depression_context": false,
+      "_is_stress_context": true,
+      "_is_physical_health_context": false,
+      "_is_tired_context": false
+    },
+    "pred_res_without_args": {
+      "mental_state": "Stress",
+      "confidence": 98.0,
+      "risk_level": "MEDIUM",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule"
+    },
+    "pred_res_with_args": {
+      "mental_state": "Stress",
+      "confidence": 98.0,
+      "risk_level": "MEDIUM",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule"
+    }
+  },
+  "i feel sad": {
+    "text": "i feel sad",
+    "clean_text": "i feel sad",
+    "rule_analysis": {
+      "intent": "sadness",
+      "emotion": "sadness",
+      "intent_confidence": 1.0,
+      "emotion_confidence": 1.0,
+      "risk_level": "LOW"
+    },
+    "raw_intent": {
+      "intent": "depression",
+      "confidence": 0.35
+    },
+    "raw_emotion": {
+      "emotion": "sadness",
+      "confidence": 35.0,
+      "secondary": [],
+      "is_mixed": false,
+      "pattern": "fallback",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      }
+    },
+    "engine_analysis": {
+      "intent": "sadness",
+      "emotion": "sadness",
+      "intent_confidence": 1.0,
+      "emotion_confidence": 1.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule",
+      "distribution": null,
+      "source": "rule"
+    },
+    "flags": {
+      "_is_crisis": false,
+      "_is_negated_distress": false,
+      "_is_temporal_coping_context": false,
+      "_is_positive_context": false,
+      "_is_general_casual_context": false,
+      "_is_anxiety_context": false,
+      "_is_depression_context": true,
+      "_is_stress_context": false,
+      "_is_physical_health_context": false,
+      "_is_tired_context": false
+    },
+    "pred_res_without_args": {
+      "mental_state": "Depression",
+      "confidence": 98.0,
+      "risk_level": "MEDIUM",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule"
+    },
+    "pred_res_with_args": {
+      "mental_state": "Depression",
+      "confidence": 98.0,
+      "risk_level": "MEDIUM",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule"
+    }
+  },
+  "i am not stressed": {
+    "text": "i am not stressed",
+    "clean_text": "i am not stressed",
+    "rule_analysis": {
+      "intent": "general",
+      "emotion": "neutral",
+      "intent_confidence": 0.95,
+      "emotion_confidence": 0.95,
+      "risk_level": "LOW"
+    },
+    "raw_intent": {
+      "intent": "stress",
+      "confidence": 0.35
+    },
+    "raw_emotion": {
+      "emotion": "sadness",
+      "confidence": 35.0,
+      "secondary": [],
+      "is_mixed": false,
+      "pattern": "fallback",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      }
+    },
+    "engine_analysis": {
+      "intent": "general",
+      "emotion": "neutral",
+      "intent_confidence": 0.95,
+      "emotion_confidence": 0.95,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule",
+      "distribution": null,
+      "source": "rule"
+    },
+    "flags": {
+      "_is_crisis": false,
+      "_is_negated_distress": true,
+      "_is_temporal_coping_context": false,
+      "_is_positive_context": false,
+      "_is_general_casual_context": false,
+      "_is_anxiety_context": false,
+      "_is_depression_context": false,
+      "_is_stress_context": false,
+      "_is_physical_health_context": false,
+      "_is_tired_context": false
+    },
+    "pred_res_without_args": {
+      "mental_state": "Normal",
+      "confidence": 95.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule"
+    },
+    "pred_res_with_args": {
+      "mental_state": "Normal",
+      "confidence": 95.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule"
+    }
+  },
+  "i am not low": {
+    "text": "i am not low",
+    "clean_text": "i am not low",
+    "rule_analysis": null,
+    "raw_intent": {
+      "intent": "stress",
+      "confidence": 0.35
+    },
+    "raw_emotion": {
+      "emotion": "sadness",
+      "confidence": 35.0,
+      "secondary": [],
+      "is_mixed": false,
+      "pattern": "fallback",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      }
+    },
+    "engine_analysis": {
+      "intent": "general",
+      "emotion": "neutral",
+      "intent_confidence": 0.5,
+      "emotion_confidence": 70.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      },
+      "source": "model"
+    },
+    "flags": {
+      "_is_crisis": false,
+      "_is_negated_distress": false,
+      "_is_temporal_coping_context": false,
+      "_is_positive_context": false,
+      "_is_general_casual_context": false,
+      "_is_anxiety_context": false,
+      "_is_depression_context": false,
+      "_is_stress_context": false,
+      "_is_physical_health_context": false,
+      "_is_tired_context": false
+    },
+    "pred_res_without_args": {
+      "mental_state": "Normal",
+      "confidence": 92.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated"
+    },
+    "pred_res_with_args": {
+      "mental_state": "Normal",
+      "confidence": 92.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated"
+    }
+  },
+  "i feel like dying": {
+    "text": "i feel like dying",
+    "clean_text": "i feel like dying",
+    "rule_analysis": {
+      "intent": "suicidal_thought",
+      "emotion": "sadness",
+      "intent_confidence": 1.0,
+      "emotion_confidence": 1.0,
+      "risk_level": "HIGH"
+    },
+    "raw_intent": {
+      "intent": "stress",
+      "confidence": 0.35
+    },
+    "raw_emotion": {
+      "emotion": "sadness",
+      "confidence": 35.0,
+      "secondary": [],
+      "is_mixed": false,
+      "pattern": "fallback",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      }
+    },
+    "engine_analysis": {
+      "intent": "suicidal_thought",
+      "emotion": "sadness",
+      "intent_confidence": 1.0,
+      "emotion_confidence": 1.0,
+      "risk_level": "HIGH",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule",
+      "distribution": null,
+      "source": "rule"
+    },
+    "flags": {
+      "_is_crisis": true,
+      "_is_negated_distress": false,
+      "_is_temporal_coping_context": false,
+      "_is_positive_context": false,
+      "_is_general_casual_context": false,
+      "_is_anxiety_context": false,
+      "_is_depression_context": false,
+      "_is_stress_context": false,
+      "_is_physical_health_context": false,
+      "_is_tired_context": false
+    },
+    "pred_res_without_args": {
+      "mental_state": "Suicidal",
+      "confidence": 100.0,
+      "risk_level": "HIGH",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated"
+    },
+    "pred_res_with_args": {
+      "mental_state": "Suicidal",
+      "confidence": 100.0,
+      "risk_level": "HIGH",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "rule"
+    }
+  },
+  "i will not die": {
+    "text": "i will not die",
+    "clean_text": "i will not die",
+    "rule_analysis": null,
+    "raw_intent": {
+      "intent": "stress",
+      "confidence": 0.35
+    },
+    "raw_emotion": {
+      "emotion": "sadness",
+      "confidence": 35.0,
+      "secondary": [],
+      "is_mixed": false,
+      "pattern": "fallback",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      }
+    },
+    "engine_analysis": {
+      "intent": "general",
+      "emotion": "neutral",
+      "intent_confidence": 0.5,
+      "emotion_confidence": 70.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated",
+      "distribution": {
+        "sadness": 35.0,
+        "joy": 13.0,
+        "love": 13.0,
+        "anger": 13.0,
+        "fear": 13.0,
+        "surprise": 13.0
+      },
+      "source": "model"
+    },
+    "flags": {
+      "_is_crisis": false,
+      "_is_negated_distress": false,
+      "_is_temporal_coping_context": false,
+      "_is_positive_context": false,
+      "_is_general_casual_context": false,
+      "_is_anxiety_context": false,
+      "_is_depression_context": false,
+      "_is_stress_context": false,
+      "_is_physical_health_context": false,
+      "_is_tired_context": false
+    },
+    "pred_res_without_args": {
+      "mental_state": "Normal",
+      "confidence": 92.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated"
+    },
+    "pred_res_with_args": {
+      "mental_state": "Normal",
+      "confidence": 92.0,
+      "risk_level": "LOW",
+      "secondary_emotions": [],
+      "is_mixed": false,
+      "pattern": "concentrated"
+    }
+  }
+}

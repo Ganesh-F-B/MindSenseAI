@@ -17,6 +17,10 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
+      try {
+        logout();
+      } catch {}
+
       const data = new URLSearchParams();
       data.append("username", email);
       data.append("password", password);

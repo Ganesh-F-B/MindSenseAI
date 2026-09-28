@@ -34,6 +34,9 @@ class ChatSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     title = Column(String, default="New Chat")
+    crisis_state = Column(String, default="no_active_crisis")
+    escalation_level = Column(String, default="none")
+    last_alert_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

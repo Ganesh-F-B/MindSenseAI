@@ -24,3 +24,29 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def init_db_migrations():
+    """Idempotently add crisis escalation columns to chat_sessions if missing."""
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            if "sqlite" in DATABASE_URL:
+                cursor = conn.execute(text("PRAGMA table_info(chat_sessions)"))
+                columns = [row[1] for row in cursor.fetchall()]
+                if columns:
+                    if "crisis_state" not in columns:
+                        conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN crisis_state VARCHAR DEFAULT 'no_active_crisis'"))
+                    if "escalation_level" not in columns:
+                        conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN escalation_level VARCHAR DEFAULT 'none'"))
+                    if "last_alert_at" not in columns:
+                        conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN last_alert_at DATETIME"))
+                    conn.commit()
+            else:
+                conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS crisis_state VARCHAR DEFAULT 'no_active_crisis'"))
+                conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS escalation_level VARCHAR DEFAULT 'none'"))
+                conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS last_alert_at TIMESTAMP"))
+                conn.commit()
+    except Exception as e:
+        print(f"[DB MIGRATION WARNING] {e}")
+
