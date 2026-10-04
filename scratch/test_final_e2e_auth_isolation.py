@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import uuid
 import json
 import sqlite3
@@ -355,6 +356,13 @@ def run_e2e_verification():
         "message": "Testing stale JWT prevention in chat flow",
         "session_id": 0
     })
+    if stale_chat.status_code == 429:
+        retry_after = int(stale_chat.headers.get("Retry-After", 4))
+        time.sleep(retry_after + 1.0)
+        stale_chat = requests.post(f"{API_BASE}/chat", headers=headers_b, json={
+            "message": "Testing stale JWT prevention in chat flow",
+            "session_id": 0
+        })
     assert stale_chat.status_code == 200
     stale_sess_row = cur.execute(
         "SELECT id, user_id FROM chat_sessions WHERE user_id=? ORDER BY id DESC LIMIT 1",

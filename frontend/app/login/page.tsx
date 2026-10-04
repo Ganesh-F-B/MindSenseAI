@@ -27,8 +27,6 @@ export default function Login() {
       
       const res = await api.post("/token", data);
 
-      console.log("LOGIN RESPONSE:", res.data);
-
       await login(res.data.access_token);
      } catch (err: any) {
        setError(
@@ -86,6 +84,14 @@ export default function Login() {
         <p className="text-center text-sm text-gray-400 mt-6">
           Don't have an account? <Link href="/signup" className="text-primary hover:underline">Sign Up</Link>
         </p>
+
+        <div className="mt-8 pt-4 border-t border-white/5 flex justify-center gap-4 text-xs text-gray-500">
+          <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
+          <span>•</span>
+          <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
+          <span>•</span>
+          <Link href="/safety" className="hover:text-gray-300 transition-colors">Crisis Support</Link>
+        </div>
       </motion.div>
     </div>
   );

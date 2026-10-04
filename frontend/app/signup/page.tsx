@@ -50,7 +50,17 @@ export default function Signup() {
       const loginRes = await api.post("/token", loginData);
       await login(loginRes.data.access_token);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Signup failed");
+      const detail = err.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        const msgs = detail.map((d: any) => (typeof d === "string" ? d : d.msg || JSON.stringify(d))).join(", ");
+        setError(msgs || "Signup failed");
+      } else if (typeof detail === "string") {
+        setError(detail);
+      } else if (detail && typeof detail === "object") {
+        setError(detail.message || JSON.stringify(detail));
+      } else {
+        setError("Signup failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -107,6 +117,12 @@ export default function Signup() {
             </div>
           </div>
 
+          <p className="text-xs text-gray-500 text-center leading-relaxed">
+            By creating an account, you acknowledge that MindSenseAI is an AI wellness assistant and agree to our{" "}
+            <Link href="/terms" className="text-primary hover:underline">Terms of Service</Link> and{" "}
+            <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+          </p>
+
           <button disabled={loading} type="submit" className="w-full bg-gradient-to-r from-primary to-accent py-3 rounded-xl font-medium text-white hover:opacity-90 transition-opacity flex justify-center items-center">
             {loading ? "Creating Account..." : "Create Account"}
           </button>
@@ -115,6 +131,10 @@ export default function Signup() {
         <p className="text-center text-sm text-gray-400 mt-6">
           Already have an account? <Link href="/login" className="text-primary hover:underline">Log In</Link>
         </p>
+
+        <div className="mt-8 pt-4 border-t border-white/5 flex justify-center gap-4 text-xs text-gray-500">
+          <Link href="/safety" className="hover:text-gray-300 transition-colors">Crisis Support & Resources</Link>
+        </div>
       </motion.div>
     </div>
   );

@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import uuid
 import requests
 
@@ -73,6 +74,7 @@ def run_trajectory():
         print(f"\n[TURN {idx}] {label}")
         print(f"  User: {msg}")
         print(f"  MindSense ({analysis.get('mental_state')}, Risk: {analysis.get('risk_level')}): {reply[:120]}...")
+        time.sleep(1.3)
 
     print("\n--- Turn 15 Final Evaluation Response ---")
     print(reply)

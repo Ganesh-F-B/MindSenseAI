@@ -36,10 +36,12 @@ from fastapi import (
     File,
     Form,
     BackgroundTasks,
+    Request,
 )
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from nlp_service import analyze_mental_state
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from deberta_predictor import predict_mental_state
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -58,6 +60,9 @@ from pypdf import PdfReader
 from groq import Groq
 from gtts import gTTS
 import cv2
+import io
+from fastapi.responses import FileResponse, Response
+from upload_guard import secure_upload_context, sweep_stale_temp_uploads, UPLOAD_TMP_DIR
 import requests
 import re
 
@@ -81,7 +86,9 @@ except Exception as e:
     DEEPFACE_AVAILABLE = False
     print(f"⚠️ DeepFace unavailable: {e}")
 
-import models, schemas, auth
+import html
+import models, schemas, auth, rate_limiter, privacy_validator
+import multilingual_normalizer
 from database import engine, get_db, SessionLocal, init_db_migrations
 from dotenv import load_dotenv
 
@@ -142,257 +149,107 @@ ALERT_COOLDOWN_MINUTES = 15
 # ── Language Detection ────────────────────────────────────────────────────────
 def detect_language(text: str) -> dict:
     """
-    Detect language of user message.
-    Returns dict: { "name": "Telugu", "script": "latin" | "native", "code": "te" }
-    Priority: native script → keyword matching → default English
+    Detect language of user message using generalized multi-script Unicode
+    inspection and transliteration token matching.
+    Returns dict: { "name": str, "script": "latin" | "native", "code": str }
     """
-    t = text.strip()
-    tl = t.lower()
-
-    # 1. Pure English short words — return immediately
-    ENGLISH_WORDS = {
-        "hi",
-        "hey",
-        "hello",
-        "ok",
-        "okay",
-        "yes",
-        "no",
-        "bye",
-        "thanks",
-        "thank you",
-        "good",
-        "fine",
-        "great",
-        "nice",
-        "sure",
-        "please",
-        "sorry",
-        "help",
-        "namaste",
-        "vanakkam",
-        "namaskara",
-        "namaskaram",
-        "sat sri akal",
-        "namaskar",
-        "howdy",
-        "sup",
-        "what",
-        "how",
-        "why",
-        "who",
-        "when",
-        "where",
-    }
-    if tl.strip("!?.,") in ENGLISH_WORDS:
-        return {"name": "English", "script": "latin", "code": "en"}
-
-    # 2. Native script detection via Unicode ranges
-    for ch in t:
-        o = ord(ch)
-        if 0x0900 <= o <= 0x097F:
-            # Check for Marathi-specific Devanagari markers before defaulting to Hindi
-            MARATHI_DEV_WORDS = ["आहे", "नाही", "कसा", "कशी", "कसे", "करायची", "मरावे", "वाटते", "खूप", "मरायचं", "होते", "माझे", "माझ्या", "झाले", "झाला", "आहोत", "करायचे", "कशा", "सांग", "सांगा", "नको", "करू"]
-            if any(w in t for w in MARATHI_DEV_WORDS):
-                return {"name": "Marathi", "script": "native", "code": "mr"}
-            return {"name": "Hindi", "script": "native", "code": "hi"}
-        if 0x0C00 <= o <= 0x0C7F:
-            return {"name": "Telugu", "script": "native", "code": "te"}
-        if 0x0B80 <= o <= 0x0BFF:
-            return {"name": "Tamil", "script": "native", "code": "ta"}
-        if 0x0C80 <= o <= 0x0CFF:
-            return {"name": "Kannada", "script": "native", "code": "kn"}
-        if 0x0D00 <= o <= 0x0D7F:
-            return {"name": "Malayalam", "script": "native", "code": "ml"}
-        if 0x0980 <= o <= 0x09FF:
-            return {"name": "Bengali", "script": "native", "code": "bn"}
-        if 0x0A80 <= o <= 0x0AFF:
-            return {"name": "Gujarati", "script": "native", "code": "gu"}
-        if 0x0A00 <= o <= 0x0A7F:
-            return {"name": "Punjabi", "script": "native", "code": "pa"}
-        if 0x0600 <= o <= 0x06FF:
-            return {"name": "Urdu", "script": "native", "code": "ur"}
-
-    # 3. Transliteration keyword matching
-    KW = {
-        "te": [
-            "nenu",
-            "meeru",
-            "ela",
-            "unnaru",
-            "cheppandi",
-            "emi",
-            "ikkade",
-            "baagunnara",
-            "naku",
-            "miku",
-            "oka",
-            "roju",
-            "chala",
-            "undi",
-            "ledu",
-            "chestunnanu",
-            "telusaa",
-            "ekkadiki",
-            "evaru",
-            "chaavu",
-            "nenu chaavali",
-        ],
-        "kn": [
-            "nanu",
-            "nimma",
-            "enu",
-            "beku",
-            "illa",
-            "hogbeku",
-            "alli",
-            "iga",
-            "yaako",
-            "ondhu",
-            "naanu",
-            "chennagi",
-            "helidru",
-            "bartheeni",
-            "hogtheeni",
-        ],
-        "ta": [
-            "naan",
-            "neenga",
-            "enna",
-            "romba",
-            "paaru",
-            "sollu",
-            "vandha",
-            "irukku",
-            "eppo",
-            "enge",
-            "yaar",
-            "theriyuma",
-            "solla",
-            "mudiyum",
-        ],
-        "hi": [
-            "mujhe",
-            "aapko",
-            "kaise",
-            "hain",
-            "kya",
-            "nahi",
-            "bahut",
-            "achi",
-            "baat",
-            "hun",
-            "hoon",
-            "tum",
-            "mere",
-            "mera",
-            "tera",
-            "teri",
-            "yaar",
-            "dost",
-            "theek",
-            "accha",
-            "bura",
-            "zyada",
-            "thoda",
-            "raha",
-            "rahi",
-            "chahta",
-            "chahti",
-            "samajh",
-            "bolna",
-            "sochna",
-            "lagta",
-            "lagti",
-            "duniya",
-        ],
-        "mr": [
-            "mala",
-            "tumhi",
-            "kasa",
-            "aahe",
-            "nahi",
-            "bara",
-            "ghari",
-            "sangto",
-            "karto",
-        ],
-        "ml": [
-            "njaan",
-            "njan",
-            "ningal",
-            "entha",
-            "valare",
-            "ippol",
-            "evide",
-            "marikkanam",
-            "jeevitham",
-            "maduthu",
-            "santhosham",
-            "aarum",
-            "illa",
-            "engane",
-        ],
-        "bn": [
-            "aami",
-            "ami",
-            "tumi",
-            "kemon",
-            "aacho",
-            "achho",
-            "bhalo",
-            "khub",
-            "morte",
-            "chai",
-            "baanchte",
-            "kichu",
-            "korbo",
-            "shob",
-            "ekhon",
-        ],
-    }
-    for code, keywords in KW.items():
-        if any(kw in tl for kw in keywords):
-            names = {
-                "te": "Telugu",
-                "kn": "Kannada",
-                "ta": "Tamil",
-                "hi": "Hindi",
-                "mr": "Marathi",
-                "ml": "Malayalam",
-                "bn": "Bengali",
-            }
-            return {"name": names[code], "script": "latin", "code": code}
-
-    # 4. Default — English
-    return {"name": "English", "script": "latin", "code": "en"}
+    return multilingual_normalizer.detect_language_generalized(text)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-app = FastAPI()
+ENVIRONMENT = os.getenv("ENVIRONMENT", os.getenv("NODE_ENV", "development")).lower()
+IS_PRODUCTION = ENVIRONMENT in ("production", "prod")
 
-# In production, set ALLOWED_ORIGINS env var to your Vercel URL (comma-separated)
-# e.g. ALLOWED_ORIGINS=https://mindsenseai.vercel.app
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+# In production, disable debug mode and selectively configure documentation
+app = FastAPI(
+    debug=False,
+    docs_url=None if (IS_PRODUCTION and os.getenv("DISABLE_DOCS", "false").lower() == "true") else "/docs",
+    redoc_url=None if (IS_PRODUCTION and os.getenv("DISABLE_DOCS", "false").lower() == "true") else "/redoc",
+    openapi_url=None if (IS_PRODUCTION and os.getenv("DISABLE_DOCS", "false").lower() == "true") else "/openapi.json",
+)
+
+# Trusted proxies list for forwarded headers (X-Forwarded-Proto, X-Forwarded-For)
+TRUSTED_PROXIES_STR = os.getenv("TRUSTED_PROXIES", "127.0.0.1,::1")
+TRUSTED_PROXIES = {p.strip() for p in TRUSTED_PROXIES_STR.split(",") if p.strip()}
+
+
+def is_trusted_proxy(client_ip: Optional[str]) -> bool:
+    if not client_ip:
+        return False
+    return client_ip in TRUSTED_PROXIES or "*" in TRUSTED_PROXIES
+
+
+def validate_origin(origin: str) -> bool:
+    """Validate origin string: must be http:// or https:// with valid hostname, no wildcard, no path."""
+    if not origin or origin == "*" or not (origin.startswith("http://") or origin.startswith("https://")):
+        return False
+    # No path components allowed in CORS origin
+    parts = origin.split("://", 1)[-1].split("/")
+    if len(parts) > 1 and parts[1]:
+        return False
+    return True
+
+
+# Environment-based and development CORS origins
+DEV_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:3002",
+]
+env_origins_str = os.getenv("ALLOWED_ORIGINS", "")
+raw_env_origins = [o.strip() for o in env_origins_str.split(",") if o.strip()]
+valid_env_origins = [o for o in raw_env_origins if validate_origin(o)]
+
+if IS_PRODUCTION:
+    # In production, require explicit origins from env or verified production deployment
+    base_prod = ["https://mind-sense-ai-two.vercel.app"]
+    cors_origins = list(dict.fromkeys(valid_env_origins + base_prod))
+else:
+    cors_origins = list(dict.fromkeys(DEV_ORIGINS + valid_env_origins + ["https://mind-sense-ai-two.vercel.app"]))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:3002",
-        "https://mind-sense-ai-two.vercel.app",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
 )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+
+        # Production-aware HSTS: enabled only when direct HTTPS or X-Forwarded-Proto is HTTPS from a TRUSTED proxy
+        is_https = request.url.scheme == "https"
+        if not is_https and request.headers.get("x-forwarded-proto") == "https":
+            client_ip = request.client.host if request.client else None
+            if is_trusted_proxy(client_ip):
+                is_https = True
+
+        if is_https:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+@app.on_event("startup")
+async def on_startup():
+    sweep_stale_temp_uploads()
 
 
 def get_current_user(
@@ -404,11 +261,22 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        payload = jwt.decode(
+            token,
+            auth.SECRET_KEY,
+            algorithms=[auth.ALGORITHM],
+            options={"verify_signature": True, "verify_exp": True},
+        )
         email: str = payload.get("sub")
-        if email is None:
+        if not email or not isinstance(email, str):
             raise credentials_exception
         token_data = schemas.TokenData(email=email)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     except JWTError:
         raise credentials_exception
     user = db.query(models.User).filter(models.User.email == token_data.email).first()
@@ -421,22 +289,46 @@ def get_current_user(
 
 
 @app.post("/signup", response_model=schemas.User)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+def create_user(
+    user: schemas.UserCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    client_ip = rate_limiter.get_client_ip(request)
+    rate_limiter.enforce_rate_limit(f"ip:{client_ip}:signup", rate_limiter.AUTH_SIGNUP_CONFIG, "signup")
+
+    privacy_validator.validate_email(user.email)
+    clean_full_name = privacy_validator.validate_full_name(user.full_name, "Full name")
+    clean_phone = privacy_validator.validate_phone_number(user.phone_number, "User phone number")
+    auth.validate_password_strength(user.password)
 
     if len(user.emergency_contacts) < 2:
         raise HTTPException(
             status_code=400, detail="At least 2 emergency contacts are required"
         )
+    if len(user.emergency_contacts) > 10:
+        raise HTTPException(
+            status_code=400, detail="Maximum 10 emergency contacts allowed"
+        )
+
+    for contact in user.emergency_contacts:
+        contact.name = privacy_validator.validate_full_name(contact.name, "Contact name")
+        contact.phone_number = privacy_validator.validate_phone_number(contact.phone_number, "Contact phone number")
+        if contact.callmebot_key:
+            contact.callmebot_key = privacy_validator.validate_string_field(
+                contact.callmebot_key, "CallMeBot key", min_len=0, max_len=100, allow_empty=True
+            )
+
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
     hashed_password = auth.get_password_hash(user.password)
     db_user = models.User(
         email=user.email,
         hashed_password=hashed_password,
-        full_name=user.full_name,
-        phone_number=user.phone_number,
+        full_name=clean_full_name,
+        phone_number=clean_phone,
     )
     db.add(db_user)
     db.commit()
@@ -454,10 +346,38 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/token", response_model=schemas.Token)
 def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
 ):
+    client_ip = rate_limiter.get_client_ip(request)
+    rate_limiter.enforce_rate_limit(f"ip:{client_ip}:token", rate_limiter.AUTH_TOKEN_CONFIG, "login")
+
+    # Anti-enumeration input sanitize: reject malformed/NUL/oversized usernames with generic 401
+    if (
+        not form_data.username
+        or len(form_data.username) > 254
+        or "\x00" in form_data.username
+        or "\x00" in (form_data.password or "")
+    ):
+        auth.verify_password(form_data.password or "", auth.DUMMY_HASH)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+    if not user:
+        # Constant-time dummy verification prevents timing-based account enumeration
+        auth.verify_password(form_data.password, auth.DUMMY_HASH)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -471,15 +391,22 @@ def login_for_access_token(
 
 
 @app.get("/users/me", response_model=schemas.User)
-def read_users_me(current_user: models.User = Depends(get_current_user)):
+def read_users_me(
+    current_user: models.User = Depends(get_current_user),
+    request: Request = None,
+):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:read_me", rate_limiter.GENERAL_READ_CONFIG, "profile read")
     return current_user
 
 
 @app.delete("/users/me")
 def delete_account(
-    current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """Permanently delete user account and all associated data."""
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:delete_account", rate_limiter.STATE_CHANGE_CONFIG, "account deletion")
     try:
         # Delete all chat history and sessions
         session_ids = [
@@ -505,8 +432,9 @@ def delete_account(
         return {"message": "Account permanently deleted."}
     except Exception as e:
         db.rollback()
+        logger.error(f"Failed to delete account: {type(e).__name__}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to delete account: {str(e)}"
+            status_code=500, detail="Failed to delete account."
         )
 
 
@@ -518,18 +446,19 @@ def send_emergency_email(to_email: str, user_name: str, contacts: list) -> bool:
         )
         return False
     try:
+        safe_user_name = html.escape(str(user_name or "A user"))
         contacts_html = "".join(
-            f"<tr><td style='padding:8px 12px;color:#fff;border-bottom:1px solid #333'>{c.name}</td>"
-            f"<td style='padding:8px 12px;color:#aaa;border-bottom:1px solid #333'>{c.phone_number}</td></tr>"
+            f"<tr><td style='padding:8px 12px;color:#fff;border-bottom:1px solid #333'>{html.escape(str(c.name))}</td>"
+            f"<td style='padding:8px 12px;color:#aaa;border-bottom:1px solid #333'>{html.escape(str(c.phone_number))}</td></tr>"
             for c in contacts
         )
-        html = f"""
+        html_body = f"""
         <div style="font-family:Arial,sans-serif;background:#0a0a0f;color:#fff;padding:32px;border-radius:16px;max-width:520px;margin:auto">
           <div style="background:#ef4444;border-radius:12px;padding:16px 24px;margin-bottom:24px">
             <span style="font-size:24px">🚨</span>
             <span style="font-size:18px;font-weight:bold;margin-left:10px">EMERGENCY ALERT – MindSense AI</span>
           </div>
-          <p style="font-size:15px;color:#e2e8f0"><strong style="color:#f87171">{user_name}</strong> may be in emotional distress and needs immediate attention.</p>
+          <p style="font-size:15px;color:#e2e8f0"><strong style="color:#f87171">{safe_user_name}</strong> may be in emotional distress and needs immediate attention.</p>
           <table style="width:100%;border-collapse:collapse;margin-top:16px;background:#1e293b;border-radius:10px;overflow:hidden">
             <thead><tr style="background:#1d4ed8">
               <th style="padding:10px 12px;text-align:left;color:#bfdbfe">Contact</th>
@@ -540,17 +469,17 @@ def send_emergency_email(to_email: str, user_name: str, contacts: list) -> bool:
           <p style="color:#64748b;font-size:12px;margin-top:24px">Automated alert from MindSense AI. Do not reply.</p>
         </div>"""
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"🚨 URGENT: {user_name} needs help – MindSense AI"
+        msg["Subject"] = f"🚨 URGENT: {safe_user_name} needs help – MindSense AI"
         msg["From"] = GMAIL_SENDER_EMAIL
         msg["To"] = to_email
-        msg.attach(MIMEText(html, "html"))
+        msg.attach(MIMEText(html_body, "html"))
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_SENDER_EMAIL, GMAIL_APP_PASSWORD)
             server.sendmail(GMAIL_SENDER_EMAIL, to_email, msg.as_string())
-        print(f"[EMAIL SENT ✓] → {to_email}")
+        print(f"[EMAIL SENT ✓] → {privacy_validator.mask_email(to_email)}")
         return True
     except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
+        print(f"[EMAIL ERROR] {type(e).__name__}")
         return False
 
 
@@ -600,7 +529,7 @@ def send_sms_fast2sms(phone_numbers: list, message: str) -> bool:
         print(f"[SMS Fast2SMS] Response status: {data.get('return')}")
         return data.get("return") == True
     except Exception as e:
-        print(f"[SMS ERROR] Fast2SMS: {e}")
+        logger.error(f"[SMS ERROR] Fast2SMS: {type(e).__name__}")
         return False
 
 
@@ -644,7 +573,7 @@ def send_sms_android_gateway(phone_numbers: list, message: str) -> bool:
         # Success if we get an id back
         return "id" in data or response.status_code == 202
     except Exception as e:
-        print(f"[SMS Gate ERROR] {e}")
+        logger.error(f"[SMS Gate ERROR]: {type(e).__name__}")
         return False
 
 
@@ -660,19 +589,19 @@ def send_whatsapp_callmebot(contacts: list, message: str) -> bool:
         if not phone.startswith("+"):
             phone = f"+91{phone.lstrip('91').lstrip('+91')}"
         if not key:
-            print(f"[WhatsApp] No CallMeBot key for {c.name}. Skipping.")
+            print("[WhatsApp] Skipping contact without CallMeBot key.")
             continue
         try:
             encoded_msg = requests.utils.quote(message)
             url = f"https://api.callmebot.com/whatsapp.php?phone={phone}&text={encoded_msg}&apikey={key}"
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
-                print(f"[WhatsApp SENT ✓] → {c.name} ({mask_phone_number(phone)})")
+                print(f"[WhatsApp SENT ✓] → {mask_phone_number(phone)}")
                 sent += 1
             else:
-                print(f"[WhatsApp ERROR] {c.name}: {resp.text[:100]}")
-        except Exception as e:
-            print(f"[WhatsApp ERROR] {c.name}: {e}")
+                print(f"[WhatsApp ERROR] CallMeBot status code: {resp.status_code}")
+        except Exception:
+            print("[WhatsApp ERROR] CallMeBot dispatch request failed")
     return sent > 0
 
 
@@ -707,9 +636,9 @@ def send_whatsapp_greenapi(phone_numbers: list, message: str) -> bool:
                 print(f"[WhatsApp Green API ✓] → {mask_phone_number(number)}")
                 sent += 1
             else:
-                print(f"[WhatsApp Green API ERROR] {mask_phone_number(number)}: {data}")
-        except Exception as e:
-            print(f"[WhatsApp Green API ERROR] {mask_phone_number(number)}: {e}")
+                print(f"[WhatsApp Green API ERROR] {mask_phone_number(number)}: Status {resp.status_code}")
+        except Exception:
+            print(f"[WhatsApp Green API ERROR] {mask_phone_number(number)}: Dispatch failed")
     return sent > 0
 
 
@@ -749,9 +678,9 @@ def send_whatsapp_meta(phone_numbers: list, message: str) -> bool:
                 print(f"[Meta WA SENT ✓] → {mask_phone_number(number)}")
                 sent += 1
             else:
-                print(f"[Meta WA ERROR] {mask_phone_number(number)}: {data}")
-        except Exception as e:
-            print(f"[Meta WA ERROR] {mask_phone_number(number)}: {e}")
+                print(f"[Meta WA ERROR] {mask_phone_number(number)}: Status {resp.status_code}")
+        except Exception:
+            print(f"[Meta WA ERROR] {mask_phone_number(number)}: Dispatch failed")
     return sent > 0
 
 
@@ -762,7 +691,9 @@ def send_whatsapp_meta(phone_numbers: list, message: str) -> bool:
 def trigger_emergency(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:emergency", rate_limiter.EMERGENCY_CONFIG, "emergency alert")
     contacts = (
         db.query(models.EmergencyContact)
         .filter(models.EmergencyContact.user_id == current_user.id)
@@ -820,22 +751,39 @@ def update_emergency_contacts(
     data: EmergencyContactUpdate,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:contacts", rate_limiter.STATE_CHANGE_CONFIG, "emergency contacts update")
     if len(data.contacts) < 1:
         raise HTTPException(
             status_code=400, detail="At least 1 emergency contact is required."
         )
+    if len(data.contacts) > 10:
+        raise HTTPException(
+            status_code=400, detail="Maximum 10 emergency contacts allowed."
+        )
+
+    clean_contacts = []
+    for c in data.contacts:
+        clean_name = privacy_validator.validate_full_name(c.name, "Contact name")
+        clean_phone = privacy_validator.validate_phone_number(c.phone_number, "Contact phone number")
+        clean_key = ""
+        if c.callmebot_key:
+            clean_key = privacy_validator.validate_string_field(
+                c.callmebot_key, "CallMeBot key", min_len=0, max_len=100, allow_empty=True
+            )
+        clean_contacts.append((clean_name, clean_phone, clean_key))
 
     # Delete existing contacts and replace with new ones
     db.query(models.EmergencyContact).filter(
         models.EmergencyContact.user_id == current_user.id
     ).delete()
 
-    for c in data.contacts:
+    for name, phone, key in clean_contacts:
         db_contact = models.EmergencyContact(
-            name=c.name,
-            phone_number=c.phone_number,
-            callmebot_key=c.callmebot_key or "",
+            name=name,
+            phone_number=phone,
+            callmebot_key=key,
             user_id=current_user.id,
         )
         db.add(db_contact)
@@ -866,8 +814,11 @@ class ChatRequest(schemas.BaseModel):
 
 @app.get("/chat/sessions", response_model=List[schemas.ChatSession])
 def get_chat_sessions(
-    current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:read_sessions", rate_limiter.GENERAL_READ_CONFIG, "sessions read")
     sessions = (
         db.query(models.ChatSession)
         .filter(models.ChatSession.user_id == current_user.id)
@@ -882,7 +833,9 @@ def get_chat_session(
     session_id: int,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:read_session_detail", rate_limiter.GENERAL_READ_CONFIG, "session detail read")
     session = (
         db.query(models.ChatSession)
         .filter(
@@ -906,7 +859,10 @@ def update_chat_session(
     data: ChatSessionUpdate,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:update_session", rate_limiter.STATE_CHANGE_CONFIG, "session update")
+    clean_title = privacy_validator.validate_session_title(data.title)
     session = (
         db.query(models.ChatSession)
         .filter(
@@ -917,7 +873,7 @@ def update_chat_session(
     )
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    session.title = data.title
+    session.title = clean_title
     db.commit()
     db.refresh(session)
     return session
@@ -928,7 +884,9 @@ def delete_chat_session(
     session_id: int,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:delete_session", rate_limiter.STATE_CHANGE_CONFIG, "session delete")
     session = (
         db.query(models.ChatSession)
         .filter(
@@ -1057,7 +1015,20 @@ def chat(
     background_tasks: BackgroundTasks,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:chat", rate_limiter.CHAT_CONFIG, "chat")
+
+    privacy_validator.validate_chat_message(data.message)
+    data.language = privacy_validator.sanitize_language_code(data.language)
+    if data.emotion_context:
+        data.emotion_context = privacy_validator.validate_string_field(
+            data.emotion_context, "Emotion context", min_len=0, max_len=50, allow_empty=True
+        )
+
+    if data.history and len(data.history) > 100:
+        data.history = data.history[-100:]
+
     request_start = time.perf_counter()
     timings = {}
     analysis = {
@@ -1110,15 +1081,16 @@ def chat(
         translated_input = data.message
         if target_lang_name != "en":
             try:
-                lang_code = target_lang_name
-                should_translate = not (
-                    lang_code == "en" or len(data.message.split()) <= 3
-                )
+                UNIVERSAL_BYPASS = {
+                    "hi", "hello", "hey", "ok", "okay", "yes", "no", "bye", "thanks", "thank you"
+                }
+                msg_trimmed = data.message.strip().lower().strip("!?., ")
+                should_translate = (target_lang_name != "en") and (msg_trimmed not in UNIVERSAL_BYPASS)
                 if should_translate:
                     trans_messages = [
                         {
                             "role": "system",
-                            "content": f"You are an expert translator. Translate the user's message in {lang_label} to English. Reply with ONLY the English translation.",
+                            "content": f"You are an expert translator. Translate the user's message in {lang_label} (including transliterated or Romanized text like Kanglish or Hinglish) to English accurately. Reply with ONLY the direct English translation without notes.",
                         },
                         {"role": "user", "content": data.message},
                     ]
@@ -1352,25 +1324,54 @@ def chat(
         raw_msg = data.message or ""
         trans_msg = translated_input or ""
 
+        # Multilingual crisis analysis
+        ml_crisis = multilingual_normalizer.detect_multilingual_crisis(raw_msg)
+        if not ml_crisis.get("is_crisis") and trans_msg and trans_msg != raw_msg:
+            ml_crisis_trans = multilingual_normalizer.detect_multilingual_crisis(trans_msg)
+            if ml_crisis_trans.get("is_crisis"):
+                ml_crisis = ml_crisis_trans
+
         is_historical = _is_historical_crisis(raw_msg) or _is_historical_crisis(trans_msg)
-        is_imminent = _is_imminent_crisis(raw_msg) or _is_imminent_crisis(trans_msg)
+        is_imminent = _is_imminent_crisis(raw_msg) or _is_imminent_crisis(trans_msg) or ml_crisis.get("is_imminent", False)
         is_deescalating = (
             _is_deescalation_reassurance(raw_msg)
             or _is_deescalation_reassurance(trans_msg)
             or is_negated_crisis
+            or ml_crisis.get("is_negated", False)
         )
 
         is_crisis_detected = (
             not is_historical
             and not is_negated_crisis
+            and not is_deescalating
             and (
-                intent == "suicidal_thought"
+                ml_crisis.get("is_crisis", False)
+                or intent == "suicidal_thought"
                 or keyword_crisis
                 or ai_crisis
                 or (
                     analysis.get("mental_state") == "Suicidal"
                     and analysis.get("confidence", 0.0) >= 70
                 )
+            )
+        )
+
+        lang_req = multilingual_normalizer.detect_language_request(raw_msg) or multilingual_normalizer.detect_language_request(trans_msg)
+        phys_req = multilingual_normalizer.detect_physical_health(raw_msg) or multilingual_normalizer.detect_physical_health(trans_msg)
+        is_factual_query = bool(re.search(r"^(?:what\s+is|whats|what\s+are|where\s+is|when\s+did|who\s+is|why\s+is|how\s+does|how\s+do|can\s+you|could\s+you|tell\s+me)\b", trans_msg.lower()))
+
+        # Explicit safety rejection or continuing distress in assessment (e.g. 'no i am not safe', 'leave me alone', 'cannot go on')
+        safety_rejection_pattern = r"\b(?:no|not\s+safe|unsafe|in\s+danger|leave\s+me|cant\s+go\s+on|cannot\s+go\s+on|still\s+feel|want\s+to\s+die|feel\s+like\s+dying|end\s+it|hurt\s+myself|hopeless|pointless|give\s+up|done\s+with\s+life)\b"
+        is_safety_rejection = bool(re.search(safety_rejection_pattern, raw_msg.lower()) or re.search(safety_rejection_pattern, trans_msg.lower()))
+
+        is_unrelated_or_general = (
+            not is_crisis_detected
+            and not is_imminent
+            and not is_safety_rejection
+            and (
+                phys_req is not None
+                or intent in {"greeting", "gratitude", "how_are_you", "physical_health", "language_request"}
+                or is_factual_query
             )
         )
 
@@ -1440,6 +1441,42 @@ def chat(
                     "I am so glad to hear that you are safe. Thank you for telling me. "
                     "Remember that you are not alone, and I am here whenever you want to talk or need support."
                 )
+            elif lang_req:
+                # Case B2: Language switch request during assessment - acknowledge in requested language
+                target_code = lang_req.get("target_code", "en")
+                target_name = lang_req.get("target_name", "your preferred language")
+                analysis["mental_state"] = "Suicidal"
+                analysis["risk_level"] = "HIGH"
+                if target_code == "kn":
+                    reply_final = (
+                        "ಖಂಡಿತ, ನಾವು ಕನ್ನಡದಲ್ಲಿ ಮಾತನಾಡಬಹುದು. ನಿಮ್ಮ ಸುರಕ್ಷತೆ ನನಗೆ ಅತ್ಯಂತ ಮುಖ್ಯವಾಗಿದೆ. "
+                        "ನೀವು ಈಗ ಸುರಕ್ಷಿತವಾಗಿದ್ದೀರಾ ಎಂದು ನನಗೆ ತಿಳಿಸಬಹುದೇ? (Sure, we can speak in Kannada. Your safety is very important to me. Can you tell me if you are safe right now?)"
+                    )
+                elif target_code == "hi":
+                    reply_final = (
+                        "हाँ बिल्कुल, हम हिंदी में बात कर सकते हैं। आपकी सुरक्षा मेरे लिए बहुत महत्वपूर्ण है। "
+                        "क्या आप मुझे बता सकते हैं कि आप अभी सुरक्षित हैं? (Sure, we can speak in Hindi. Your safety is very important to me. Can you tell me if you are safe right now?)"
+                    )
+                else:
+                    reply_final = (
+                        f"Yes, certainly! We can speak in {target_name}. Your safety is my highest priority. "
+                        "Can you tell me if you are in a safe place right now?"
+                    )
+                should_dispatch_alert = False
+
+            elif is_unrelated_or_general:
+                # Case B3: General question, routine chat, or physical health during assessment
+                # Answer question naturally, maintain crisis state & risk HIGH, append gentle safety note
+                analysis["mental_state"] = "Suicidal"
+                analysis["risk_level"] = "HIGH"
+                safety_reminder = (
+                    "\n\n(I also want to check in on your safety — earlier you mentioned feeling in deep distress. "
+                    "Please know I'm here for you and want to ensure you are safe.)"
+                )
+                if safety_reminder.strip() not in reply_final:
+                    reply_final = reply_final + safety_reminder
+                should_dispatch_alert = False
+
             else:
                 # Case C: Continuing distress, rejected support, or persistent crisis in assessment
                 if session:
@@ -1478,6 +1515,42 @@ def chat(
                     "I am so relieved to hear that you are safe right now. Thank you for checking in with me. "
                     "I'm here to support you at your own pace."
                 )
+            elif lang_req:
+                # Language switch request during escalation
+                target_code = lang_req.get("target_code", "en")
+                target_name = lang_req.get("target_name", "your preferred language")
+                analysis["mental_state"] = "Suicidal"
+                analysis["risk_level"] = "HIGH"
+                if target_code == "kn":
+                    reply_final = (
+                        "ಖಂಡಿತ, ನಾವು ಕನ್ನಡದಲ್ಲಿ ಮಾತನಾಡಬಹುದು. ನಿಮ್ಮ ಸುರಕ್ಷತೆ ನನಗೆ ಅತ್ಯಂತ ಮುಖ್ಯವಾಗಿದೆ. ನಾನು ನಿಮ್ಮೊಂದಿಗೆ ಇದ್ದೇನೆ. "
+                        "(Sure, we can speak in Kannada. Your safety is very important to me. I am here with you.)"
+                    )
+                elif target_code == "hi":
+                    reply_final = (
+                        "हाँ बिल्कुल, हम हिंदी में बात कर सकते हैं। आपकी सुरक्षा मेरे लिए बहुत महत्वपूर्ण है। मैं आपके साथ हूँ। "
+                        "(Sure, we can speak in Hindi. Your safety is very important to me. I am here with you.)"
+                    )
+                else:
+                    reply_final = (
+                        f"Yes, certainly! We can speak in {target_name}. Your safety is my highest priority. "
+                        "I am right here with you."
+                    )
+                should_dispatch_alert = False
+
+            elif is_unrelated_or_general:
+                # General question, routine chat, or physical health during escalation
+                # Answer user message, retain escalated state & risk HIGH, append gentle safety note
+                analysis["mental_state"] = "Suicidal"
+                analysis["risk_level"] = "HIGH"
+                safety_reminder = (
+                    "\n\n(I also care very much about your safety and wellbeing right now — "
+                    "please remember support is available and you don't have to face this alone.)"
+                )
+                if safety_reminder.strip() not in reply_final:
+                    reply_final = reply_final + safety_reminder
+                should_dispatch_alert = False
+
             else:
                 # User remains in escalated state
                 if session:
@@ -1640,48 +1713,55 @@ def chat(
 
 @app.post("/upload")
 async def upload_file(
-    file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(get_current_user),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:upload", rate_limiter.UPLOAD_CONFIG, "file upload")
     try:
-        os.makedirs("uploads", exist_ok=True)
-        file_path = f"uploads/{file.filename}"
+        async with secure_upload_context(
+            file=file,
+            user_id=current_user.id,
+            category="text_or_pdf",
+        ) as file_path:
+            ext = file_path.split(".")[-1].lower()
+            content = ""
 
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            if ext == "txt":
+                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read()
+            elif ext == "pdf":
+                reader = PdfReader(file_path)
+                for page in reader.pages:
+                    content += page.extract_text() or ""
+            else:
+                return {"error": "Unsupported file"}
 
-        ext = file.filename.split(".")[-1].lower()
-        content = ""
+            # Return a chunk or full text
+            return {
+                "type": "text",
+                "content": content[
+                    :3000
+                ],  # return up to 3000 chars to avoid overwhelming the prompt
+            }
 
-        if ext == "txt":
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
-        elif ext == "pdf":
-            reader = PdfReader(file_path)
-            for page in reader.pages:
-                content += page.extract_text() or ""
-        else:
-            return {"error": "Unsupported file"}
-
-        # Return a chunk or full text
-        return {
-            "type": "text",
-            "content": content[
-                :3000
-            ],  # return up to 3000 chars to avoid overwhelming the prompt
-        }
-
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
+        logger.error(f"[Upload Error]: {type(e).__name__}")
+        return {"error": "Failed to process the uploaded file."}
 
 
 # ---------- AUDIO ----------
-from fastapi.responses import FileResponse
 
 
 @app.post("/transcribe")
 async def transcribe(
-    file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(get_current_user),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:transcribe", rate_limiter.TRANSCRIBE_CONFIG, "audio transcription")
     """Transcribe audio using Groq's hosted Whisper Large v3 API.
     Supports webm, mp3, mp4, wav, ogg, flac — no local ffmpeg required.
     """
@@ -1692,43 +1772,45 @@ async def transcribe(
             "Configure it in backend/.env to enable voice input.",
         )
     try:
-        os.makedirs("uploads", exist_ok=True)
-        path = f"uploads/{file.filename}"
+        async with secure_upload_context(
+            file=file,
+            user_id=current_user.id,
+            category="audio",
+        ) as path:
+            # Validate file is not empty (silent recording)
+            file_size = os.path.getsize(path)
+            if file_size < 1000:  # less than 1KB is likely an empty/silent recording
+                return {"text": ""}
 
-        with open(path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        # Validate file is not empty (silent recording)
-        file_size = os.path.getsize(path)
-        if file_size < 1000:  # less than 1KB is likely an empty/silent recording
-            return {"text": ""}
-
-        mime_type = file.content_type or "audio/webm"
-        print(
-            f"[TRANSCRIBE] filename={file.filename}, size={file_size}b, mime={mime_type}"
-        )
-
-        # Use Groq's hosted Whisper API — handles webm/audio natively, no ffmpeg needed
-        with open(path, "rb") as audio_file:
-            transcription = groq_client.audio.transcriptions.create(
-                file=(file.filename, audio_file, mime_type),
-                model="whisper-large-v3",
-                response_format="text",
+            mime_type = file.content_type or "audio/webm"
+            safe_name = os.path.basename(path)
+            logger.info(
+                f"[TRANSCRIBE] safe_name={safe_name}, size={file_size}b, mime={mime_type}"
             )
 
-        # Groq returns plain text string when response_format="text"
-        text = (
-            transcription.strip()
-            if isinstance(transcription, str)
-            else (transcription.text or "").strip()
-        )
-        print(f"[TRANSCRIBE] result: '{text[:60]}'")
+            # Use Groq's hosted Whisper API — handles webm/audio natively, no ffmpeg needed
+            with open(path, "rb") as audio_file:
+                transcription = groq_client.audio.transcriptions.create(
+                    file=(safe_name, audio_file, mime_type),
+                    model="whisper-large-v3",
+                    response_format="text",
+                )
 
-        return {"text": text}
+            # Groq returns plain text string when response_format="text"
+            text = (
+                transcription.strip()
+                if isinstance(transcription, str)
+                else (transcription.text or "").strip()
+            )
+            logger.info(f"[TRANSCRIBE] result length={len(text)} chars")
 
+            return {"text": text}
+
+    except HTTPException:
+        raise
     except Exception as e:
-        print("TRANSCRIBE ERROR:", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"TRANSCRIBE ERROR: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="Audio transcription service temporarily unavailable.")
 
 
 class TTSRequest(schemas.BaseModel):
@@ -1737,32 +1819,61 @@ class TTSRequest(schemas.BaseModel):
 
 
 @app.post("/tts")
-def tts_generate(data: TTSRequest):
-    try:
-        tts_lang = data.language
-        if tts_lang not in [
-            "en",
-            "hi",
-            "kn",
-            "ta",
-            "te",
-            "ml",
-            "mr",
-            "bn",
-            "gu",
-            "pa",
-            "ur",
-        ]:
-            tts_lang = "en"
+def tts_generate(
+    data: TTSRequest,
+    current_user: models.User = Depends(get_current_user),
+    request: Request = None,
+):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:tts", rate_limiter.TTS_CONFIG, "TTS generation")
+    raw_text = data.text or ""
+    # Strip control characters (ASCII < 32 except newline and tab)
+    clean_text = "".join(
+        ch for ch in raw_text if ch in ("\n", "\t") or (ord(ch) >= 32 and ord(ch) != 127)
+    ).strip()
 
-        tts = gTTS(text=data.text, lang=tts_lang)
-        os.makedirs("uploads", exist_ok=True)
-        file_path = "uploads/output.mp3"
-        tts.save(file_path)
-        return FileResponse(file_path, media_type="audio/mpeg")
+    if not clean_text:
+        raise HTTPException(
+            status_code=422,
+            detail="Text must contain at least one non-whitespace, printable character.",
+        )
+
+    if len(clean_text) > 800:
+        raise HTTPException(
+            status_code=422,
+            detail="Text exceeds maximum allowed length of 800 characters.",
+        )
+
+    tts_lang = (data.language or "en").lower().strip()
+    if tts_lang not in [
+        "en",
+        "hi",
+        "kn",
+        "ta",
+        "te",
+        "ml",
+        "mr",
+        "bn",
+        "gu",
+        "pa",
+        "ur",
+    ]:
+        tts_lang = "en"
+
+    try:
+        tts = gTTS(text=clean_text, lang=tts_lang)
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        audio_content = fp.read()
+        return Response(content=audio_content, media_type="audio/mpeg")
+    except HTTPException:
+        raise
     except Exception as e:
-        print("TTS ERROR:", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"TTS ERROR: {type(e).__name__}")
+        raise HTTPException(
+            status_code=502,
+            detail="Text-to-speech service temporarily unavailable.",
+        )
 
 
 def _emotion_to_analysis(
@@ -1828,26 +1939,24 @@ async def upload_video(
     session_id: Optional[int] = Form(None),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:video", rate_limiter.VIDEO_CONFIG, "video processing")
+    rate_limiter.video_concurrency_guard.acquire()
+
+    if not DEEPFACE_AVAILABLE:
+        rate_limiter.video_concurrency_guard.release()
+        return {
+            "error": "Emotion detection unavailable. Please install the required DeepFace dependencies."
+        }
+
+    upload_cm = secure_upload_context(
+        file=file,
+        user_id=current_user.id,
+        category="video",
+    )
     try:
-        os.makedirs("uploads", exist_ok=True)
-
-        file_path = f"uploads/{file.filename}"
-
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        ext = file.filename.split(".")[-1].lower()
-
-        if ext not in ["mp4", "mov", "avi", "webm"]:
-            return {
-                "error": "Unsupported video format. Please upload MP4, MOV, AVI, or WEBM."
-            }
-
-        if not DEEPFACE_AVAILABLE:
-            return {
-                "error": "Emotion detection unavailable. Please install the required DeepFace dependencies."
-            }
+        file_path = await upload_cm.__aenter__()
 
         cap = cv2.VideoCapture(file_path)
 
@@ -1860,6 +1969,22 @@ async def upload_video(
         if frame_count <= 0:
             cap.release()
             return {"error": "Unable to read frames from the video."}
+
+        # Resource limits on dimensions and duration
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if w > 4096 or h > 4096:
+            cap.release()
+            return {"error": "Video resolution exceeds maximum allowed dimensions (4096x4096)."}
+
+        if fps and fps > 0:
+            duration_sec = frame_count / fps
+        else:
+            duration_sec = frame_count / 25.0
+
+        if duration_sec > 300.0 or frame_count > 15000:
+            cap.release()
+            return {"error": "Video duration exceeds maximum allowed limit (5 minutes)."}
 
         # ---------------------------------------------------------
         # Bounded duration-aware frame sampling
@@ -2115,11 +2240,14 @@ async def upload_video(
             "disclaimer": "Facial expressions provide visual emotion cues and do NOT constitute a medical or psychological diagnosis.",
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-
-        print("[Video Upload Error]:", e)
-
-        return {"error": str(e)}
+        logger.error(f"[Video Upload Error]: {type(e).__name__}")
+        return {"error": "Failed to process the uploaded video."}
+    finally:
+        rate_limiter.video_concurrency_guard.release()
+        await upload_cm.__aexit__(None, None, None)
 
 
 # ---------- NLP ANALYTICS ----------
@@ -2127,8 +2255,11 @@ async def upload_video(
 
 @app.get("/nlp-analytics")
 def nlp_analytics(
-    current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    request: Request = None,
 ):
+    rate_limiter.enforce_rate_limit(f"user:{current_user.id}:nlp_analytics", rate_limiter.GENERAL_READ_CONFIG, "nlp analytics")
     """
     Aggregate NLP mental-state analysis across all user messages for the
     authenticated user.  Returns per-state counts, total messages analysed,
@@ -2172,5 +2303,5 @@ def nlp_analytics(
         }
 
     except Exception as e:
-        print("NLP analytics error:", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"NLP analytics error: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve analytics.")

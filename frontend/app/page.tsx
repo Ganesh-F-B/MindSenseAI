@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Heart, Shield, Globe, Mic } from "lucide-react";
+import Footer from "../components/Footer";
 
 export default function Home() {
   return (
@@ -76,6 +77,8 @@ export default function Home() {
           ))}
         </motion.div>
       </main>
+
+      <Footer />
     </div>
   );
 }

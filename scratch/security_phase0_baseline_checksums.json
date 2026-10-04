@@ -1,0 +1,19 @@
+{
+  "backend/deberta_predictor.py": "bdb680acb56e5b8c4cc8b490564ec809f1b0d611ec3317bbffc64c1c8a20a33e",
+  "backend/nlp_service.py": "53ca2d8acf46f55a54782b639bc8c78a198d6e2d50ca3a3d7e68b3d936d7bf5a",
+  "backend/main.py": "10b7f1f885cc1cfa6d53875a1f1852a316c2d62d832fa78a2db0100f6bb457c6",
+  "backend/models.py": "d64e85bda4b0fba4dd9021aa63c6ea982da6b53402d5bed3d27db4152e03cc95",
+  "backend/database.py": "661c30e0b0f866e4cd6a06d462470777fb4b0cda99c568cd9cf038533fcd968e",
+  "backend/schemas.py": "e893d5db55ced832cc55ab6d50b659d3cd6ad064492e942c80fd6e80680ae395",
+  "backend/auth.py": "9b8dfed5116b809291bf27e87b65f028bfa2f8527a052dd9d8dc18ffa0b35311",
+  "chatbot/conversation/chat_engine.py": "895a629c05460a69dfb036f12fc998eba81d58ea981dd6423c60235b7ac3ca78",
+  "chatbot/conversation/response_generator.py": "1a6e5252ca5b665cd5bb574ced5288dae61d40e6721f0a2e54b89c071f250fc5",
+  "chatbot/emotion/predictor.py": "03f6c75c59f7d4a393094fa7237350a8bc20b27cbaf77527bb326f723e6fc8eb",
+  "chatbot/emotion/config.py": "b74d50c79d866aa1bcc1da026608a6fcb69a9c6841b72cd39510cc4305a64de0",
+  "chatbot/emotion/model.py": "710c948e4a18206a3b15a9e108790f9fc80f477c9103f9b4a3740426e3c8318b",
+  "chatbot/intent/predictor.py": "75cb5c911366964a1d2d3a9507ae3d3f5a7853c6307a57361eeb657eef3f8f32",
+  "chatbot/intent/config.py": "5da69c6defd0c74f9fd98d47b280284c178fbe52192a72be52434880aed64fc4",
+  "chatbot/intent/model.py": "84239e9b793765b6e824fe41695c0c1f4ad88614f8e46573c34becd65388a156",
+  "frontend/hooks/useAuth.tsx": "8bcda932ce0538bac704d932fde5ac5b4214b08432319d5b7113cf9a10a5e187",
+  "frontend/lib/api.ts": "e6c15bce13b3cd0f3068312357b4690e298457980f52ffcd602175f8589e07c8"
+}

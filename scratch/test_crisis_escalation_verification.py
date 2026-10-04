@@ -57,6 +57,9 @@ class TestCrisisEscalation(unittest.TestCase):
 
         main.app.dependency_overrides[main.get_current_user] = override_get_current_user
 
+        if hasattr(main, "rate_limiter"):
+            main.rate_limiter.set_rate_limiting_enabled(False)
+
         cls.client = TestClient(main.app)
 
         # Mock notification dispatchers to capture calls without external network I/O
@@ -89,6 +92,11 @@ class TestCrisisEscalation(unittest.TestCase):
         main.send_whatsapp_greenapi = mock_whatsapp
         main.send_sms_android_gateway = mock_sms
         main.send_emergency_email = mock_email
+
+    @classmethod
+    def tearDownClass(cls):
+        if hasattr(main, "rate_limiter"):
+            main.rate_limiter.set_rate_limiting_enabled(True)
 
     def setUp(self):
         self.dispatched_alerts.clear()
